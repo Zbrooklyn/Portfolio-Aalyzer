@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Portfolio Backtester v5.4.1</title>
+  <title>Portfolio Backtester v5.4.8</title>
   <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/chartjs-adapter-date-fns/dist/chartjs-adapter-date-fns.bundle.min.js"></script>
   <style>
@@ -11,7 +11,6 @@
       --primary-color: #007aff; --primary-hover: #005ecb; --border-color: #dee2e6;
       --background-main: #f0f2f5; --background-card: #ffffff; --text-color: #212529; 
       --text-light: #6c757d; --error-color: #d93025; --green: #34c759; --red: #ff3b30;
-      --debug-color: #ff9500;
     }
     html { scroll-behavior: smooth; }
     body {
@@ -30,18 +29,41 @@
     }
     .controls-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 18px; }
     .control-group { display: flex; flex-direction: column; gap: 6px; }
-    .control-group label, .control-group-row label { font-weight: 600; font-size: 14px; }
+    .control-group label { font-weight: 600; font-size: 14px; display: flex; align-items: center; gap: 6px; }
 
     .app-container input[type="text"],
     .app-container input[type="number"],
     .app-container input[type="date"],
     .app-container select {
-        width: 100%;
-        box-sizing: border-box; 
+        width: 100%; box-sizing: border-box; 
     }
 
     .control-group input, .control-group select {
       font-size: 15px; padding: 10px; border-radius: 6px; border: 1px solid var(--border-color);
+    }
+
+    .phase-header {
+        font-size: 16px; font-weight: 600; margin-top: 20px; margin-bottom: 15px;
+        padding-bottom: 8px; border-bottom: 1px solid #e9ecef;
+    }
+    .indented-settings {
+        margin-top: 15px; margin-left: 20px; padding-left: 15px; border-left: 3px solid #e9ecef;
+    }
+
+    .help-icon {
+        display: flex; align-items: center; justify-content: center;
+        width: 18px; height: 18px; border-radius: 50%; background-color: #e9ecef;
+        color: #6c757d; font-size: 11px; font-weight: bold;
+        cursor: help; user-select: none; flex-shrink: 0;
+    }
+    
+    #master-tooltip {
+        visibility: hidden; opacity: 0; transition: opacity 0.2s, visibility 0.2s;
+        position: fixed;
+        width: 260px; background-color: #343a40; color: #fff;
+        text-align: left; border-radius: 6px; padding: 10px;
+        z-index: 1000; pointer-events: none;
+        font-size: 13px; font-weight: 400; line-height: 1.5;
     }
 
     #portfolios-container { display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 15px; }
@@ -58,15 +80,15 @@
     #run-backtest-btn { font-size: 16px; padding: 12px 30px; }
     #run-backtest-btn:disabled { background-color: #a0c3ff; cursor: not-allowed; }
 
-    .projections-button-wrapper { display: flex; justify-content: center; margin-top: 20px; }
+    .projections-button-wrapper { display: flex; justify-content: center; margin-top: 25px; }
     
     .outcome-explanation {
         font-size: 12px; color: var(--text-light); font-weight: 400;
         display: block; margin-top: 2px; line-height: 1.3;
     }
-
+    
     #debug-container {
-      background-color: #fffbe6; border: 1px solid var(--debug-color); border-radius: 8px;
+      background-color: #fffbe6; border: 1px solid #ff9500; border-radius: 8px;
       margin-top: 20px; padding: 15px; font-family: monospace; font-size: 13px;
       color: #8a6d3b; max-height: 200px; overflow-y: auto; white-space: pre-wrap;
     }
@@ -83,18 +105,31 @@
     .positive { color: #1e7e34; } .negative { color: var(--red); }
     .hidden { display: none; }
     
+    /* MOBILE UI FIX v5.4.8 */
     @media (max-width: 768px) {
       .app-container { padding: 5px; } .section-card { padding: 15px; }
       h1 { font-size: 24px; } h2 { font-size: 20px; }
-      .controls-grid { grid-template-columns: 1fr 1fr; gap: 12px; }
+
+      /* This rule now ONLY applies to the Setup section for a clean 2-column layout */
+      #setup-card .controls-grid {
+          grid-template-columns: 1fr 1fr;
+          gap: 12px;
+      }
+
+      /* This new rule forces the retirement grids into a single, logical column */
+      #retire-settings .controls-grid {
+          grid-template-columns: 1fr;
+      }
     }
   </style>
 </head>
 <body>
+  <div id="master-tooltip"></div>
   <div class="app-container">
     <h1>Portfolio Backtester</h1>
-    <p class="version">Version 5.4.1</p> 
-    <div class="section-card">
+    <p class="version">Version 5.4.8</p> 
+    <!-- UI FIX v5.4.8: Added ID to the setup card for specific CSS targeting -->
+    <div id="setup-card" class="section-card">
       <h2>1. Setup</h2>
       <div class="controls-grid">
         <div class="control-group"><label for="start-date">Start Date</label><input type="date" id="start-date" value="2018-01-01"></div>
@@ -104,7 +139,9 @@
         <div class="control-group"><label for="contribution-frequency">Contribution Frequency</label><select id="contribution-frequency"><option value="monthly">Monthly</option><option value="quarterly">Quarterly</option><option value="annually">Annually</option><option value="none">None</option></select></div>
         <div class="control-group"><label for="rebalance-frequency">Rebalance Frequency</label><select id="rebalance-frequency"><option value="annually">Annually</option><option value="quarterly">Quarterly</option><option value="never">Never</option></select></div>
         <div class="control-group"><label for="reinvest-dividends">Reinvest Dividends?</label><select id="reinvest-dividends"><option value="true">True</option><option value="false">False</option></select></div>
-        <div class="control-group"><label for="risk-free-rate">Risk-Free Rate (%)</label><input type="number" id="risk-free-rate" value="1.5"></div>
+        <div class="control-group"><label for="risk-free-rate">Risk-Free Rate (%)
+            <span class="help-icon" data-tooltip="The return of a 'risk-free' investment, like a government bond. Used to calculate risk-adjusted return metrics like the Sharpe Ratio.">?</span>
+        </label><input type="number" id="risk-free-rate" value="1.5"></div>
         <div class="control-group"><label for="dividend-tax-rate">Dividend Tax Rate (%)</label><input type="number" id="dividend-tax-rate" value="15"></div>
         <div class="control-group"><label for="gains-tax-rate">Capital Gains Tax (%)</label><input type="number" id="gains-tax-rate" value="15"></div>
         <div class="control-group"><label for="benchmark1">Benchmark 1</label><input type="text" id="benchmark1" value="SPY"></div>
@@ -128,7 +165,9 @@
         <h2>4. Future Projections</h2>
         
         <div class="control-group" style="margin-bottom: 20px;">
-            <label for="projection-goal">What is your goal for this projection?</label>
+            <label for="projection-goal">What is your goal for this projection?
+                 <span class="help-icon" data-tooltip="Choose whether you want to see a simple projection of your savings growth or a more detailed retirement plan with an income phase.">?</span>
+            </label>
             <select id="projection-goal">
                 <option value="grow" selected>Continue saving and grow my portfolio</option>
                 <option value="retire">Plan for a future retirement income</option>
@@ -137,31 +176,59 @@
 
         <div id="grow-settings">
             <div class="controls-grid">
-                <div class="control-group"><label for="grow-projection-period">Projection Period</label><select id="grow-projection-period"><option value="10">10 Years</option><option value="20">20 Years</option><option value="30">30 Years</option></select></div>
-                <div class="control-group"><label for="grow-sim-quality">Simulation Quality</label><select id="grow-sim-quality"><option value="1000">Fast</option><option value="5000" selected>Recommended</option><option value="10000">High Precision</option></select></div>
-                <div class="control-group"><label for="grow-inflation-rate">Assumed Annual Inflation (%)</label><input type="number" id="grow-inflation-rate" value="3.0"></div>
-                <div class="control-group"><label for="grow-contribution-increase">Annual Contribution Increase (%)</label><input type="number" id="grow-contribution-increase" value="2.0"></div>
+                <div class="control-group"><label for="grow-projection-period">Projection Period (Years)</label><input type="number" id="grow-projection-period" value="10"></div>
+                <div class="control-group"><label for="grow-sim-quality">Simulation Quality
+                    <span class="help-icon" data-tooltip="The number of possible future scenarios we will test. 'Recommended' offers a good balance of speed and accuracy.">?</span>
+                </label><select id="grow-sim-quality"><option value="1000">Fast</option><option value="5000" selected>Recommended</option><option value="10000">High Precision</option></select></div>
+                <div class="control-group"><label for="grow-inflation-rate">Assumed Annual Inflation (%)
+                     <span class="help-icon" data-tooltip="The long-term average inflation rate you expect. This helps calculate the 'real' value of your money in the future (its purchasing power).">?</span>
+                </label><input type="number" id="grow-inflation-rate" value="3.0"></div>
+                <div class="control-group"><label for="grow-contribution-increase">Annual Contribution Increase (%)
+                     <span class="help-icon" data-tooltip="The percentage by which you plan to increase your yearly contributions. This is useful for modeling raises or saving more over time.">?</span>
+                </label><input type="number" id="grow-contribution-increase" value="2.0"></div>
             </div>
         </div>
 
         <div id="retire-settings" class="hidden">
+            <div class="control-group" style="margin-bottom: 20px;">
+                <label for="current-age">What is your current age?</label>
+                <input type="number" id="current-age" value="35">
+            </div>
+            
+            <div class="phase-header">Phase 1: Your Working Years (Saving)</div>
             <div class="controls-grid">
-                <div class="control-group"><label for="years-until-retirement">1. Years Until Retirement (Saving)</label><input type="number" id="years-until-retirement" value="10"></div>
-                <div class="control-group"><label for="income-phase-duration">3. Retirement Duration (Income)</label><input type="number" id="income-phase-duration" value="30"></div>
-                 <div class="control-group"><label for="retire-contribution-increase">Annual Saving Increase (%)</label><input type="number" id="retire-contribution-increase" value="2.0"></div>
-                <div class="control-group"><label for="retire-inflation-rate">Assumed Annual Inflation (%)</label><input type="number" id="retire-inflation-rate" value="3.0"></div>
+                 <div class="control-group"><label for="retirement-age">At what age do you want to retire?</label><input type="number" id="retirement-age" value="65"></div>
+                 <div class="control-group"><label for="retire-contribution-increase">Annual Saving Increase (%)
+                     <span class="help-icon" data-tooltip="The percentage by which you plan to increase your yearly contributions during the 'Saving & Growth' phase.">?</span>
+                 </label><input type="number" id="retire-contribution-increase" value="2.0"></div>
             </div>
-            <div class="control-group" style="margin-top: 15px;">
-                <label for="withdrawal-strategy">2. Retirement Income Plan</label>
-                <select id="withdrawal-strategy">
-                    <option value="dividends">Live Off Dividend Income Only</option>
-                    <option value="fixed_amount" selected>Withdraw a Fixed Amount Annually</option>
-                    <option value="percentage">Withdraw a Percentage Annually</option>
-                </select>
+
+            <div class="phase-header">Phase 2: Your Retirement Years (Income)</div>
+            <div class="controls-grid">
+                <div class="control-group">
+                    <label for="withdrawal-strategy">What is your retirement income plan?
+                        <span class="help-icon" data-tooltip="Choose how you want to receive your income in retirement. This determines how money is withdrawn from your portfolio.">?</span>
+                    </label>
+                    <select id="withdrawal-strategy">
+                        <option value="dividends">Live Off Dividend Income Only</option>
+                        <option value="fixed_amount" selected>Withdraw a Fixed Amount Annually</option>
+                        <option value="percentage">Withdraw a Percentage Annually</option>
+                    </select>
+                </div>
+                <div class="control-group"><label for="final-age">How long should income last (until age...)?
+                     <span class="help-icon" data-tooltip="The age until which you need your retirement income to last.">?</span>
+                </label><input type="number" id="final-age" value="95"></div>
             </div>
-            <div id="withdrawal-settings-container" style="margin-top: 15px;">
+            <div class="indented-settings">
                 <div class="control-group hidden" id="fixed_amount_setting"><label for="annual-withdrawal-amount">Annual Withdrawal Amount ($)</label><input type="number" id="annual-withdrawal-amount" value="50000"></div>
                 <div class="control-group hidden" id="percentage_setting"><label for="annual-withdrawal-rate">Annual Withdrawal Rate (%)</label><input type="number" id="annual-withdrawal-rate" value="4"></div>
+            </div>
+            
+             <div class="control-group" style="margin-top:20px;">
+                <label for="retire-inflation-rate">Assumed Annual Inflation (%)
+                     <span class="help-icon" data-tooltip="The long-term average inflation rate you expect. This helps calculate the 'real' value of your money in the future (its purchasing power).">?</span>
+                </label>
+                <input type="number" id="retire-inflation-rate" value="3.0">
             </div>
         </div>
 
@@ -187,11 +254,11 @@ document.addEventListener("DOMContentLoaded", () => {
     const loader = document.getElementById('loader');
     const errorContainer = document.getElementById('error-container');
     const resultsArea = document.getElementById('results-area');
-    const projectionsArea = document.getElementById('projections-area');
     const portfoliosContainer = document.getElementById('portfolios-container');
     const addPortfolioBtn = document.getElementById('add-portfolio-btn');
     let portfolioCount = 0;
 
+    const projectionsArea = document.getElementById('projections-area');
     const projectionsResultsArea = document.getElementById('projections-results-area');
     const projectionChartContainer = document.getElementById('projection-chart-container');
     const runProjectionsBtn = document.getElementById('run-projections-btn');
@@ -202,6 +269,28 @@ document.addEventListener("DOMContentLoaded", () => {
     const withdrawalStrategySelect = document.getElementById('withdrawal-strategy');
     const fixedAmountSetting = document.getElementById('fixed_amount_setting');
     const percentageSetting = document.getElementById('percentage_setting');
+    const masterTooltip = document.getElementById('master-tooltip');
+    
+    document.addEventListener('mouseover', (e) => {
+        if (e.target.classList.contains('help-icon')) {
+            const tooltipText = e.target.dataset.tooltip; if (!tooltipText) return;
+            masterTooltip.textContent = tooltipText;
+            const iconRect = e.target.getBoundingClientRect();
+            let top = iconRect.top - masterTooltip.offsetHeight - 8;
+            let left = iconRect.left + (iconRect.width / 2) - (masterTooltip.offsetWidth / 2);
+            if (top < 0) { top = iconRect.bottom + 8; }
+            if (left < 10) left = 10;
+            if (left + masterTooltip.offsetWidth > window.innerWidth - 10) { left = window.innerWidth - masterTooltip.offsetWidth - 10; }
+            masterTooltip.style.left = `${left}px`; masterTooltip.style.top = `${top}px`;
+            masterTooltip.style.visibility = 'visible'; masterTooltip.style.opacity = '1';
+        }
+    });
+    document.addEventListener('mouseout', (e) => {
+        if (e.target.classList.contains('help-icon')) {
+            masterTooltip.style.visibility = 'hidden';
+            masterTooltip.style.opacity = '0';
+        }
+    });
 
     projectionGoalSelect.addEventListener('change', () => {
         const isRetire = projectionGoalSelect.value === 'retire';
@@ -233,7 +322,6 @@ document.addEventListener("DOMContentLoaded", () => {
     async function fetchWithFallback(url) { for (const prefix of proxies) { try { const res = await fetch(prefix + encodeURIComponent(url)); if (!res.ok) throw new Error(`Proxy request failed: ${res.status}`); const data = await res.json(); if (data.chart.error) throw new Error(data.chart.error.message); if (!data.chart.result || data.chart.result.length === 0 || !data.chart.result[0].timestamp) { throw new Error('No data returned for ticker.'); } return data; } catch (e) { console.warn(`Proxy for ${url} failed: ${e.message}`); } } throw new Error(`All fetching attempts failed for ${url.split('?')[0].split('/').pop()}`); }
     async function fetchTickerData(ticker, startDate, endDate) { const startTimestamp = Math.floor(new Date(startDate).getTime() / 1000); const endTimestamp = Math.floor(new Date(endDate).getTime() / 1000); const url = `https://query1.finance.yahoo.com/v8/finance/chart/${ticker}?period1=${startTimestamp}&period2=${endTimestamp}&interval=1d&events=div`; const data = await fetchWithFallback(url); const result = data.chart.result[0]; const prices = {}; result.timestamp.forEach((ts, i) => { const date = new Date(ts * 1000).toISOString().split('T')[0]; if (result.indicators.quote[0].close[i] !== null) { prices[date] = result.indicators.quote[0].close[i]; } }); const dividends = {}; if (result.events && result.events.dividends) { Object.values(result.events.dividends).forEach(div => { const date = new Date(div.date * 1000).toISOString().split('T')[0]; dividends[date] = (dividends[date] || 0) + div.amount; }); } return { prices, dividends }; }
 
-    // RESTORED: Full calculatePortfolioPerformance function
     function calculatePortfolioPerformance(portfolio, allData, config, benchmarkData = null) {
         const { initialInvestment, startDate, endDate, contributionAmount, contributionFrequency, rebalanceFrequency, reinvestDividends, riskFreeRate, dividendTaxRate, gainsTaxRate } = config;
         const tradingDays = Object.keys(allData[Object.keys(allData)[0]].prices).sort().filter(d => d >= startDate && d <= endDate);
@@ -317,54 +405,33 @@ document.addEventListener("DOMContentLoaded", () => {
     function generateRandomReturn(mean, stdDev) { let u1=0, u2=0; while(u1===0) u1=Math.random(); while(u2===0) u2=Math.random(); const z0 = Math.sqrt(-2.0*Math.log(u1))*Math.cos(2.0*Math.PI*u2); return z0 * stdDev + mean; }
     
     function calculateMonteCarloProjection(portfolioResult, params, simulations) {
-        // Use the cumulative dividends from the backtest to estimate a yield.
         const dividendYield = portfolioResult.cumulativeDividends / portfolioResult.endingValue / (portfolioResult.dailyValues.length / 252);
-        
         const yearPaths = Array.from({ length: simulations }, () => ({ path: [], incomes: [] }));
 
         for (let i = 0; i < simulations; i++) {
-            let value = portfolioResult.endingValue;
-            yearPaths[i].path.push(value);
+            let value = portfolioResult.endingValue; yearPaths[i].path.push(value);
             let annualContribution = params.initialContribution * 12;
 
-            // --- Accumulation Phase ---
             for (let y = 0; y < params.accumulationYears; y++) {
                 value += annualContribution;
-                // Use twrr as the CAGR/mean return for projections
                 const randomReturn = generateRandomReturn(portfolioResult.twrr, portfolioResult.annualizedVolatility);
                 value *= (1 + randomReturn);
                 annualContribution *= (1 + params.contributionIncrease);
                 yearPaths[i].path.push(value);
             }
-            const valueAtRetirement = value;
             
-            // --- Decumulation (Retirement) Phase ---
             if (params.goal === 'retire') {
                 for (let y = 0; y < params.decumulationYears; y++) {
                     const annualDividends = value * dividendYield;
-                    let withdrawalAmount = 0;
-                    let reinvestment = annualDividends; // Assume all dividends are reinvested initially
-
-                    if (params.withdrawalStrategy === 'dividends') {
-                        withdrawalAmount = annualDividends;
-                        reinvestment = 0; // All dividends are taken as income
-                    } else if (params.withdrawalStrategy === 'percentage') {
-                        withdrawalAmount = value * params.withdrawalRate;
-                        reinvestment = Math.max(0, annualDividends - withdrawalAmount);
-                    } else if (params.withdrawalStrategy === 'fixed_amount') {
-                        withdrawalAmount = params.withdrawalAmount;
-                        reinvestment = Math.max(0, annualDividends - withdrawalAmount);
-                    }
-                    
-                    value -= withdrawalAmount; // Take out cash for living expenses.
-                    value += reinvestment;     // Add back any surplus dividends.
-
-                    // Grow the remaining principal
-                    const randomReturn = generateRandomReturn(portfolioResult.twrr, portfolioResult.annualizedVolatility);
-                    value *= (1 + randomReturn);
-                    
+                    let withdrawalAmount = 0, reinvestment = annualDividends;
+                    if (params.withdrawalStrategy === 'dividends') { withdrawalAmount = annualDividends; reinvestment = 0; }
+                    else if (params.withdrawalStrategy === 'percentage') { withdrawalAmount = value * params.withdrawalRate; reinvestment = Math.max(0, annualDividends - withdrawalAmount); }
+                    else if (params.withdrawalStrategy === 'fixed_amount') { withdrawalAmount = params.withdrawalAmount; reinvestment = Math.max(0, annualDividends - withdrawalAmount); }
+                    value -= withdrawalAmount; value += reinvestment;
+                    const principalReturn = (value - reinvestment) * generateRandomReturn(portfolioResult.twrr, portfolioResult.annualizedVolatility);
+                    value += principalReturn;
                     yearPaths[i].incomes.push(withdrawalAmount);
-                    yearPaths[i].path.push(value);
+                    yearPaths[i].path.push(value < 0 ? 0 : value);
                 }
             }
         }
@@ -393,51 +460,47 @@ document.addEventListener("DOMContentLoaded", () => {
             finalValue: medianPath[medianPath.length - 1],
         };
     }
-
-    // RESTORED: formatNumber function
+    
     function formatNumber(num, type, decimals = 2) {
         if (typeof num !== 'number' || isNaN(num)) return 'N/A';
         if (type === 'currency') return '$' + num.toLocaleString('en-US', { minimumFractionDigits: decimals, maximumFractionDigits: decimals });
         if (type === 'percent') return (num * 100).toFixed(decimals) + ' %';
         return num.toFixed(decimals);
     }
+    
+    function createHelpTooltip(text) {
+        return `<span class="help-icon" data-tooltip="${text.replace(/"/g, '&quot;')}">?</span>`;
+    }
 
-    // RESTORED: renderHistoricalResults function
     function renderHistoricalResults(results) {
+        primaryBenchmarkTicker = document.getElementById('benchmark1').value.trim().toUpperCase() || 'SPY';
         const names = results.map(r => r.portfolio.name);
         const overviewMetrics = [
-            { label: 'Initial Investment', key: 'initialInvestment', type: 'currency' }, { label: 'Total Contributions', key: 'totalContributions', type: 'currency' },
-            { label: 'Ending Value', key: 'endingValue', type: 'currency' }, { label: 'Cumulative Dividends', key: 'cumulativeDividends', type: 'currency' }, 
-            { label: 'Total Return', key: 'totalReturn', type: 'percent' }, { label: 'TWRR (CAGR)', key: 'twrr', type: 'percent' }
+            { label: 'Ending Value', key: 'endingValue', type: 'currency', help: 'The final total value of the portfolio at the end of the backtest period.' },
+            { label: 'Total Return', key: 'totalReturn', type: 'percent', help: 'The total percentage gain or loss of the portfolio, based on the total contributions made.' }, 
+            { label: 'TWRR (CAGR)', key: 'twrr', type: 'percent', help: 'Time-Weighted Rate of Return (or Compound Annual Growth Rate). This measures the true growth rate of your investment, ignoring the effects of your contributions. It is the best metric for comparing different strategies.' }
         ];
         const riskMetrics = [
-            { label: 'Annualized Volatility', key: 'annualizedVolatility', type: 'percent' }, { label: 'Sharpe Ratio', key: 'sharpeRatio', type: 'number' },
-            { label: 'Sortino Ratio', key: 'sortinoRatio', type: 'number' }, { label: 'Max Drawdown', key: 'maxDrawdown', type: 'percent' },
-            { label: 'Best Year', key: 'bestYear', type: 'percent' }, { label: 'Worst Year', key: 'worstYear', type: 'percent' },
-            { label: `Beta (vs. ${primaryBenchmarkTicker})`, key: 'beta', type: 'number' }, { label: `Alpha (vs. ${primaryBenchmarkTicker})`, key: 'alpha', type: 'percent' },
-            { label: `Tracking Error (vs. ${primaryBenchmarkTicker})`, key: 'trackingError', type: 'percent' }
+            { label: 'Annualized Volatility', key: 'annualizedVolatility', type: 'percent', help: "Measures how much the portfolio's value swings up and down. Higher numbers mean a riskier, more 'bumpy' ride." },
+            { label: 'Sharpe Ratio', key: 'sharpeRatio', type: 'number', help: 'Measures how much return you get for the amount of risk you take. A higher number is better.' },
+            { label: 'Max Drawdown', key: 'maxDrawdown', type: 'percent', help: 'The largest single drop the portfolio experienced from its peak value during the backtest. It is a key measure of downside risk.' },
+            { label: `Beta (vs. ${primaryBenchmarkTicker})`, key: 'beta', type: 'number', help: `Measures the portfolio's volatility relative to the benchmark (${primaryBenchmarkTicker}). A Beta of 1.1 means it's 10% more volatile than the benchmark.` },
+            { label: `Alpha (vs. ${primaryBenchmarkTicker})`, key: 'alpha', type: 'percent', help: `Measures the portfolio's ability to outperform the market. A positive Alpha means it performed better than its benchmark, considering the risk it took.` }
         ];
         let overviewHTML = `<h3>Historical Overview</h3><div class="table-container"><table><thead><tr><th>Metric</th>`;
         names.forEach(name => overviewHTML += `<th>${name}</th>`); overviewHTML += `</tr></thead><tbody>`;
-        overviewMetrics.forEach(m => { overviewHTML += `<tr><td>${m.label}</td>`; results.forEach(r => { overviewHTML += `<td>${formatNumber(r[m.key], m.type)}</td>`; }); overviewHTML += `</tr>`; });
+        overviewMetrics.forEach(m => { overviewHTML += `<tr><td>${m.label} ${createHelpTooltip(m.help)}</td>`; results.forEach(r => { overviewHTML += `<td>${formatNumber(r[m.key], m.type)}</td>`; }); overviewHTML += `</tr>`; });
         overviewHTML += `</tbody></table></div>`;
-        let breakdownHTML = ``;
-        results.filter(r => r.breakdown).forEach(r => {
-            breakdownHTML += `<h3>${r.portfolio.name} Breakdown</h3><div class="table-container"><table><thead><tr><th>Ticker</th><th>Alloc %</th><th>Value Start</th><th>Value End</th><th>Drift %</th></tr></thead><tbody>`;
-            r.breakdown.forEach(b => {
-                breakdownHTML += `<tr><td>${b.symbol}</td><td>${b.allocation.toFixed(1)} %</td><td>${formatNumber(b.valueStart, 'currency')}</td><td>${formatNumber(b.valueEnd, 'currency')}</td><td class="${b.drift >= 0 ? 'positive' : 'negative'}">${b.drift.toFixed(2)} %</td></tr>`;
-            });
-            breakdownHTML += `</tbody></table></div>`;
-        });
+        
         let riskHTML = `<h3>Risk & Exposure</h3><div class="table-container"><table><thead><tr><th>Metric</th>`;
         names.forEach(name => riskHTML += `<th>${name}</th>`); riskHTML += `</tr></thead><tbody>`;
         riskMetrics.forEach(m => {
-            riskHTML += `<tr><td>${m.label}</td>`;
+            riskHTML += `<tr><td>${m.label} ${createHelpTooltip(m.help)}</td>`;
             results.forEach(r => { riskHTML += `<td class="${r[m.key] < 0 ? 'negative' : ''}">${formatNumber(r[m.key], m.type, 2)}</td>`; });
             riskHTML += `</tr>`;
         });
         riskHTML += `</tbody></table></div>`;
-        resultsArea.innerHTML = `<h2>3. Historical Backtest Results</h2>` + overviewHTML + breakdownHTML + riskHTML;
+        resultsArea.innerHTML = `<h2>3. Historical Backtest Results</h2>` + overviewHTML + riskHTML;
     }
     
     function renderProjectionChart(historicalData, projectionData, params) {
@@ -461,11 +524,11 @@ document.addEventListener("DOMContentLoaded", () => {
          if (params.goal === 'retire') {
             mcHTML += `<h3>Your Retirement Projection</h3><div class="table-container"><table><thead><tr><th>Key Milestone</th>`;
             names.forEach(name => mcHTML += `<th>${name}</th>`); mcHTML += `</tr></thead><tbody>`;
-            mcHTML += `<tr><td>Value at Retirement<span class="outcome-explanation">Likely value after ${params.accumulationYears} years of saving.</span></td>`;
+            mcHTML += `<tr><td>Value at Retirement<span class="outcome-explanation">Likely value at age ${params.retirementAge}.</span></td>`;
             projectionResults.forEach(r => mcHTML += `<td>${formatNumber(r.monteCarlo.valueAtRetirement, 'currency', 0)}</td>`); mcHTML += `</tr>`;
-            mcHTML += `<tr><td>Average Annual Income<span class="outcome-explanation">Likely income during your ${params.decumulationYears}-year retirement, in today's money.</span></td>`;
+            mcHTML += `<tr><td>Average Annual Income<span class="outcome-explanation">Likely income during your retirement, in today's money.</span></td>`;
             projectionResults.forEach(r => mcHTML += `<td>${formatNumber(r.monteCarlo.medianIncome / Math.pow(1 + params.inflationRate, params.accumulationYears), 'currency', 0)} / year</td>`); mcHTML += `</tr>`;
-            mcHTML += `<tr><td>Final Portfolio Value<span class="outcome-explanation">Likely value left at the end of your retirement.</span></td>`;
+            mcHTML += `<tr><td>Final Portfolio Value<span class="outcome-explanation">Likely value left at age ${params.finalAge}.</span></td>`;
             projectionResults.forEach(r => mcHTML += `<td>${formatNumber(r.monteCarlo.finalValue, 'currency', 0)}</td>`); mcHTML += `</tr>`;
         } else {
             mcHTML += `<h3>Potential Future Outcomes (${params.accumulationYears}-Year Projection)</h3><div class="table-container"><table><thead><tr><th>Scenario</th>`;
@@ -483,33 +546,23 @@ document.addEventListener("DOMContentLoaded", () => {
         projectionsResultsArea.innerHTML = mcHTML;
     }
 
-    // RESTORED: Full runBacktest function
     async function runBacktest() {
         runBtn.disabled = true; loader.style.display = 'block'; errorContainer.textContent = '';
         resultsArea.classList.add('hidden'); projectionsArea.classList.add('hidden');
         projectionsResultsArea.classList.add('hidden'); projectionChartContainer.classList.add('hidden');
         if (projectionChartInstance) { projectionChartInstance.destroy(); projectionChartInstance = null; }
         try {
-            const config = {
-                initialInvestment: parseFloat(document.getElementById('initial-investment').value), startDate: document.getElementById('start-date').value, endDate: document.getElementById('end-date').value,
-                contributionAmount: parseFloat(document.getElementById('contribution-amount').value), contributionFrequency: document.getElementById('contribution-frequency').value,
-                rebalanceFrequency: document.getElementById('rebalance-frequency').value, reinvestDividends: document.getElementById('reinvest-dividends').value === 'true',
-                riskFreeRate: parseFloat(document.getElementById('risk-free-rate').value) / 100,
-                dividendTaxRate: parseFloat(document.getElementById('dividend-tax-rate').value) / 100, gainsTaxRate: parseFloat(document.getElementById('gains-tax-rate').value) / 100,
-            };
+            const config = { initialInvestment: parseFloat(document.getElementById('initial-investment').value), startDate: document.getElementById('start-date').value, endDate: document.getElementById('end-date').value, contributionAmount: parseFloat(document.getElementById('contribution-amount').value), contributionFrequency: document.getElementById('contribution-frequency').value, rebalanceFrequency: document.getElementById('rebalance-frequency').value, reinvestDividends: document.getElementById('reinvest-dividends').value === 'true', riskFreeRate: parseFloat(document.getElementById('risk-free-rate').value) / 100, dividendTaxRate: parseFloat(document.getElementById('dividend-tax-rate').value) / 100, gainsTaxRate: parseFloat(document.getElementById('gains-tax-rate').value) / 100 };
             primaryBenchmarkTicker = document.getElementById('benchmark1').value.trim().toUpperCase() || 'SPY';
             const secondaryBenchmarkTicker = document.getElementById('benchmark2').value.trim().toUpperCase();
             const benchmarks = [...new Set([primaryBenchmarkTicker, secondaryBenchmarkTicker].filter(b => b))];
             const portfolios = parsePortfolios();
             if (portfolios.length === 0 && benchmarks.length === 0) { throw new Error("Please configure at least one portfolio or benchmark."); }
-            
             const uniqueTickers = Array.from(new Set([...benchmarks, ...portfolios.flatMap(p => p.tickers.map(t => t.symbol))]));
             const settledResults = await Promise.allSettled(uniqueTickers.map(ticker => fetchTickerData(ticker, config.startDate, config.endDate)));
-            
             const allData = {}; const failedTickers = [];
             settledResults.forEach((result, i) => { const ticker = uniqueTickers[i]; if (result.status === 'fulfilled') { allData[ticker] = result.value; } else { failedTickers.push(ticker); } });
             if (failedTickers.length > 0) { throw new Error(`Failed to fetch data for: ${failedTickers.join(', ')}.`); }
-
             const benchmarkResults = {};
             if (primaryBenchmarkTicker) {
                 const primaryBenchmarkResult = calculatePortfolioPerformance({ name: primaryBenchmarkTicker, tickers: [{ symbol: primaryBenchmarkTicker, allocation: 100 }]}, allData, config);
@@ -517,18 +570,13 @@ document.addEventListener("DOMContentLoaded", () => {
                 const meanReturn = dailyReturns.reduce((a, b) => a + b, 0) / dailyReturns.length;
                 benchmarkResults[primaryBenchmarkTicker] = { ...primaryBenchmarkResult, dailyReturns, meanReturn, variance: dailyReturns.map(r => Math.pow(r - meanReturn, 2)).reduce((a, b) => a + b, 0) / dailyReturns.length };
             }
-
             const portfolioResults = portfolios.map(p => calculatePortfolioPerformance(p, allData, config, benchmarkResults[primaryBenchmarkTicker]));
-            
             if (secondaryBenchmarkTicker && secondaryBenchmarkTicker !== primaryBenchmarkTicker) {
                 benchmarkResults[secondaryBenchmarkTicker] = calculatePortfolioPerformance({ name: secondaryBenchmarkTicker, tickers: [{ symbol: secondaryBenchmarkTicker, allocation: 100 }]}, allData, config, benchmarkResults[primaryBenchmarkTicker]);
             }
-            
-            historicalResults = [...portfolioResults, ...Object.values(benchmarkResults)];
-            
+            historicalResults = [...portfolioResults, ...Object.values(benchmarkResults).filter(b => b)];
             renderHistoricalResults(historicalResults);
-            resultsArea.classList.remove('hidden');
-            projectionsArea.classList.remove('hidden');
+            resultsArea.classList.remove('hidden'); projectionsArea.classList.remove('hidden');
             resultsArea.scrollIntoView({ behavior: 'smooth' });
         } catch (error) { errorContainer.textContent = `Error: ${error.message}`; } finally { runBtn.disabled = false; loader.style.display = 'none'; }
     }
@@ -546,8 +594,12 @@ document.addEventListener("DOMContentLoaded", () => {
                 params.contributionIncrease = parseFloat(document.getElementById('grow-contribution-increase').value) / 100;
                 params.initialContribution = document.getElementById('contribution-frequency').value === 'none' ? 0 : parseFloat(document.getElementById('contribution-amount').value);
             } else {
-                params.accumulationYears = parseInt(document.getElementById('years-until-retirement').value);
-                params.decumulationYears = parseInt(document.getElementById('income-phase-duration').value);
+                const currentAge = parseInt(document.getElementById('current-age').value);
+                const retirementAge = parseInt(document.getElementById('retirement-age').value);
+                const finalAge = parseInt(document.getElementById('final-age').value);
+                params.accumulationYears = Math.max(0, retirementAge - currentAge);
+                params.decumulationYears = Math.max(0, finalAge - retirementAge);
+                params.retirementAge = retirementAge; params.finalAge = finalAge;
                 params.inflationRate = parseFloat(document.getElementById('retire-inflation-rate').value) / 100;
                 params.contributionIncrease = parseFloat(document.getElementById('retire-contribution-increase').value) / 100;
                 params.initialContribution = document.getElementById('contribution-frequency').value === 'none' ? 0 : parseFloat(document.getElementById('contribution-amount').value);
