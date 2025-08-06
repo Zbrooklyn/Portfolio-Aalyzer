@@ -4,7 +4,7 @@
   <meta charset="utf-8" />
   <title>PyScript Debug & Execution Toolkit (Display Only)</title>
 
-  <!-- FULL PyScript bundle exposes window.pyscript -->
+  <!-- Full PyScript bundle exposes <py-script> and window.pyscript -->
   <link rel="stylesheet" href="https://pyscript.net/releases/2025.7.3/pyscript.css" />
   <script defer src="https://pyscript.net/releases/2025.7.3/pyscript.js"></script>
 
@@ -35,8 +35,13 @@ try:
     from js import console, document
     from pyscript import display
 
+    # ✅ display() test
     display("✅ [static] display() works!", target="init-box")
+
+    # ✅ console.log test
     console.log("[static] console.log from Python")
+
+    # ✅ Python version
     document.getElementById("version-box").innerText = f"Python version: {sys.version}"
 
 except Exception as e:
@@ -57,15 +62,17 @@ except Exception as e:
   <div id="js2py" class="box"></div>
 
   <h3>b) Python → JS console</h3>
-  <p>Look in your browser console for: <code>[interop]</code></p>
+  <p>Open your browser console for log prefixed <code>[interop]</code></p>
 
   <py-script>
 from js import console
 from pyodide.ffi import create_proxy
 from pyscript import display
 
+# Python → JS console.log
 console.log("[interop] Python→JS console.log working")
 
+# JS → Python callback
 def receive_from_js(msg):
     display(f"✅ [interop] Received from JS: {msg}", target="js2py")
 
@@ -82,18 +89,17 @@ js.receive_from_js = create_proxy(receive_from_js)
 
   <button onclick="method2()">Method 2: interpreter.run()</button>
   <div id="dynamic2" class="box"></div>
-  <!-- this runner is used by interpreter.run() -->
   <py-script id="runner2" output="dynamic2"></py-script>
 
-  <button onclick="method3()">Method 3: Inject &lt;py-script&gt;</button>
+  <button onclick="method3()">Method 3: Inject <py-script></button>
   <div id="dynamic3" class="box"></div>
 
   <noscript>
-    <p class="error">❌ JavaScript is disabled—PyScript cannot run.</p>
+    <p class="error">❌ JavaScript is disabled – PyScript cannot run.</p>
   </noscript>
 
   <script>
-    // JS→Python callback helper
+    // JS → Python helper
     function jsToPy() {
       if (window.receive_from_js) {
         window.receive_from_js("Hello from JS!");
@@ -102,12 +108,12 @@ js.receive_from_js = create_proxy(receive_from_js)
       }
     }
 
-    // Method 1: Invoke the same callback
+    // Method 1: invoke the Python callback
     function method1() {
       jsToPy();
     }
 
-    // Method 2: interpreter.run() using display()
+    // Method 2: use pyscript.interpreter.run()
     async function method2() {
       const code = `
 from pyscript import display
@@ -124,7 +130,7 @@ display("✅ [Method 2] interpreter.run() with display() worked!", target="dynam
       }
     }
 
-    // Method 3: Inject a new <py-script> tag
+    // Method 3: inject a new <py-script> tag
     function method3() {
       try {
         const tag = document.createElement("py-script");
