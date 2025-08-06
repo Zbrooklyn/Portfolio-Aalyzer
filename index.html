@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
   <meta charset="utf-8" />
-  <title>PyScript Dynamic Execution – Refined</title>
+  <title>PyScript Dynamic Execution – Corrected</title>
   <!-- Stable Core build -->
   <link rel="stylesheet" href="https://pyscript.net/releases/2024.1.1/core.css" />
   <script type="module" src="https://pyscript.net/releases/2024.1.1/core.js"></script>
@@ -17,7 +17,7 @@
 </head>
 <body>
 
-  <h1>🧪 PyScript Dynamic Execution – Refined</h1>
+  <h1>🧪 PyScript Dynamic Execution – Corrected</h1>
 
   <h2>✅ Initialization Tests</h2>
   <div id="version-output" class="box"></div>
@@ -46,7 +46,8 @@
   <hr>
 
   <!-- Initialization block -->
-  <py-script>
+  <!-- *** FIX 1: Give the main script tag an ID *** -->
+  <py-script id="main-pyscript">
 import js
 from js import console, document
 import sys
@@ -55,7 +56,6 @@ from pyodide.ffi import create_proxy
 
 # 1. Basic display() test:
 display(f"✅ Static display() works. Python {sys.version}", target="display-output")
-# You can also manipulate the DOM directly:
 document.getElementById("version-output").innerText = f"✅ Direct DOM manipulation works."
 
 # 2. Define the callback for Method 1:
@@ -76,26 +76,30 @@ js.dynamic_run = create_proxy(dynamic_run)
     }
 
     // Method 2: interpreter.run() with `pyscript.display(target=...)`
-    // This is the best way to render rich, targeted output from a dynamic string of code.
     async function method2() {
+      // *** FIX 2: Get the script tag by ID to access its interpreter ***
+      const mainPy = document.getElementById("main-pyscript");
+      if (!mainPy || !mainPy.interpreter) {
+        document.getElementById("dynamic-2").innerText = "❌ PyScript interpreter not found.";
+        return;
+      }
+
       const code = `
 from pyscript import display
 display("✅ Method 2: interpreter.run() with <b>display(target=...)</b> worked!", target="dynamic-2")
 `;
       try {
-        // Note: No `output` option is needed here because display() specifies its own target.
-        await pyscript.interpreter.run(code);
+        await mainPy.interpreter.run(code);
       } catch (err) {
         console.error("Method 2 error:", err);
         document.getElementById("dynamic-2").innerText = "❌ Method 2 failed: " + err;
       }
     }
 
-    // Method 3: inject a new <py-script> tag with `pyscript.display(target=...)`
+    // Method 3: inject a new <py-script> tag. This works without changes.
     function method3() {
       try {
         const tag = document.createElement("py-script");
-        // Note: No `output` attribute is needed here because display() specifies its own target.
         tag.textContent = `
 from pyscript import display
 display("✅ Method 3: injected &lt;py-script&gt; with <b>display(target=...)</b> worked!", target="dynamic-3")
@@ -108,16 +112,21 @@ display("✅ Method 3: injected &lt;py-script&gt; with <b>display(target=...)</b
     }
 
     // Method 4: interpreter.run() with `print()` and the `output` option.
-    // Use this when you want to capture standard output (like from `print()`).
     async function method4() {
+        // *** FIX 3: Get the script tag by ID to access its interpreter ***
+        const mainPy = document.getElementById("main-pyscript");
+        if (!mainPy || !mainPy.interpreter) {
+          document.getElementById("dynamic-4").innerText = "❌ PyScript interpreter not found.";
+          return;
+        }
+
         const code = `
 # This is a standard Python print() statement
 print("✅ Method 4: interpreter.run() with print() and the 'output' option worked!")
 print("All stdout from this code block will be redirected.")
 `;
         try {
-            await pyscript.interpreter.run(code, {
-                // The `output` option redirects stdout from this execution to the specified element ID.
+            await mainPy.interpreter.run(code, {
                 output: "dynamic-4"
             });
         } catch (err) {
