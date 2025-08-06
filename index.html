@@ -2,112 +2,111 @@
 <html lang="en">
 <head>
   <meta charset="utf-8" />
-  <title>PyScript Dynamic Fixes – Final Working</title>
+  <title>PyScript Dynamic Execution – Final Toolkit</title>
+  <!-- Pin to a stable core release -->
   <link rel="stylesheet" href="https://pyscript.net/releases/2024.11.1/core.css" />
   <script type="module" src="https://pyscript.net/releases/2024.11.1/core.js"></script>
   <style>
     body { font-family: sans-serif; padding: 20px; line-height: 1.6; }
-    h2 { margin-top: 30px; }
-    .box { padding: 10px; margin: 10px 0; border-left: 4px solid #ccc; background: #f9f9f9; }
+    h2 { margin-top: 2rem; }
+    .box { padding: 0.5rem; margin: 0.5rem 0; border-left: 4px solid #ccc; background: #f9f9f9; }
+    button { margin-right: 0.5rem; }
     .success { color: green; }
-    .error { color: red; }
+    .error   { color: red; }
   </style>
 </head>
 <body>
 
-  <h1>🧪 PyScript Dynamic Execution – Final Fixes</h1>
+  <h1>🧪 PyScript Dynamic Execution – Final Toolkit</h1>
 
-  <h2>✅ Python Version</h2>
+  <h2>✅ Initialization Tests</h2>
   <div id="version-output" class="box"></div>
-
-  <h2>✅ Static print() Output</h2>
-  <div id="print-output" class="box"></div>
-
-  <h2>✅ display() Output</h2>
+  <div id="print-output"   class="box"></div>
   <div id="display-output" class="box"></div>
 
-  <h2>✅ Dynamic Execution Tests</h2>
+  <hr>
 
-  <button onclick="runDynamic1()">Method 1: run() + print()</button>
-  <div id="dynamic-output-1" class="box"></div>
+  <h2>🔀 Dynamic Execution Methods</h2>
+  <button onclick="method1()">Method 1: Call Python callback</button>
+  <button onclick="method2()">Method 2: interpreter.run()</button>
+  <button onclick="method3()">Method 3: Inject &lt;py-script&gt;</button>
 
-  <button onclick="runDynamic2()">Method 2: set variable + run()</button>
-  <div id="dynamic-output-2" class="box"></div>
+  <h3>▶️ Method 1 Output (callback)</h3>
+  <div id="dynamic-1" class="box"></div>
 
-  <button onclick="runDynamic3()">Method 3: Inject <py-script></button>
-  <div id="dynamic-output-3" class="box"></div>
+  <h3>▶️ Method 2 Output (run())</h3>
+  <div id="dynamic-2" class="box"></div>
+  <!-- Hidden runners for Method 2 -->
+  <py-script id="runner-2" output="dynamic-2"></py-script>
 
-  <py-script id="runner-1" output="dynamic-output-1"></py-script>
-  <py-script id="runner-2" output="dynamic-output-2"></py-script>
+  <h3>▶️ Method 3 Output (injection)</h3>
+  <div id="dynamic-3" class="box"></div>
 
   <hr>
 
   <py-script output="print-output">
-try:
-    import js
-    from js import console, document
-    import sys
-    from pyscript import display
-    from pyodide.ffi import create_proxy
+# --- Initialization Block ---
+import js
+from js import console, document
+import sys
+from pyscript import display
+from pyodide.ffi import create_proxy
 
-    print("✅ Static print() works.")
-    console.log("✅ Python to JS logging works")
-    display("✅ Static display() works.", target="display-output")
-    document.getElementById("version-output").innerText = f"Python {sys.version}"
+# 1. Basic print()/display() tests:
+print("✅ Static print() works.")
+console.log("✅ Python→JS console log")
+display("✅ Static display() works.", target="display-output")
+document.getElementById("version-output").innerText = f"Python {sys.version}"
 
-    def receive_from_js(msg):
-        display(f"✅ From JS: {msg}", target="display-output")
-    js.receive_from_js = create_proxy(receive_from_js)
+# 2. Define a Python callback for Method 1:
+def dynamic_run(msg):
+    display(f"✅ Method 1 callback says: {msg}", target="dynamic-1")
 
-except Exception as e:
-    print("❌ PyScript init error:", e)
-    console.error("❌ PyScript error:", e)
+# Expose the callback to JS:
+js.dynamic_run = create_proxy(dynamic_run)
   </py-script>
 
   <script>
-    async function runDynamic1() {
-      const code = `print("✅ Method 1: run() + print() works!")`
+    // --- Method 1: Invoke the pre-defined Python callback ---
+    function method1() {
+      if (window.dynamic_run) {
+        window.dynamic_run("Hello from JS → Python callback!");
+      } else {
+        document.getElementById("dynamic-1").innerText = "❌ Callback not ready yet.";
+      }
+    }
+
+    // --- Method 2: Use pyscript.interpreter.run() with print() ---
+    async function method2() {
+      const code = `print("✅ Method 2 run(): Hello dynamic world!")`;
       try {
         await pyscript.interpreter.run(code, {
           globals: pyscript.interpreter.globals,
-          output: "dynamic-output-1"
+          output: "dynamic-2"
         });
       } catch (err) {
-        document.getElementById("dynamic-output-1").innerText = "❌ Method 1 Failed.";
-        console.error("Method 1 Error:", err);
+        console.error("Method 2 error:", err);
+        document.getElementById("dynamic-2").innerText = "❌ Method 2 failed.";
       }
     }
 
-    async function runDynamic2() {
+    // --- Method 3: Inject a new <py-script> tag ---
+    function method3() {
       try {
-        pyscript.interpreter.globals.set("msg", "✅ Method 2: set variable + print(msg)")
-        const code = `print(msg)`
-        await pyscript.interpreter.run(code, {
-          output: "dynamic-output-2"
-        });
+        const code = `print("✅ Method 3 injection: Hello from injected tag!")`;
+        const tag  = document.createElement("py-script");
+        tag.setAttribute("output", "dynamic-3");
+        tag.textContent = code;  // safe: textContent avoids HTML parsing
+        document.body.appendChild(tag);
       } catch (err) {
-        document.getElementById("dynamic-output-2").innerText = "❌ Method 2 Failed.";
-        console.error("Method 2 Error:", err);
-      }
-    }
-
-    function runDynamic3() {
-      try {
-        const code = `print("✅ Method 3: Injected py-script worked.")`
-        const py = document.createElement("py-script")
-        py.setAttribute("output", "dynamic-output-3")
-        py.textContent = code  // Use textContent, not innerHTML, to avoid HTML tag injection
-        document.body.appendChild(py)
-      } catch (err) {
-        document.getElementById("dynamic-output-3").innerText = "❌ Method 3 Failed.";
-        console.error("Method 3 Error:", err);
+        console.error("Method 3 error:", err);
+        document.getElementById("dynamic-3").innerText = "❌ Method 3 failed.";
       }
     }
   </script>
 
   <noscript>
-    <p class="error">❌ JavaScript is disabled. PyScript won't run.</p>
+    <p class="error">❌ JavaScript is disabled – PyScript cannot run.</p>
   </noscript>
-
 </body>
 </html>
