@@ -2,59 +2,55 @@
 <html lang="en">
 <head>
   <meta charset="utf-8" />
-  <title>PyScript Full Debug & Execution Toolkit</title>
+  <title>PyScript Debug & Execution Toolkit (Display Only)</title>
 
-  <!-- Full PyScript bundle (most reliable) -->
+  <!-- Full PyScript bundle for guaranteed display() support -->
   <link rel="stylesheet" href="https://pyscript.net/releases/2025.7.3/pyscript.css" />
   <script defer src="https://pyscript.net/releases/2025.7.3/pyscript.js"></script>
 
   <style>
     body { font-family: sans-serif; padding: 20px; line-height: 1.5; }
     h1, h2 { margin-bottom: 0.5em; }
-    .box { 
-      padding: 0.5em; 
-      margin: 0.5em 0; 
-      border-left: 4px solid #888; 
+    button { margin: 0.25em 0.5em 0.75em 0; }
+    .box {
+      padding: 0.5em;
+      margin: 0.5em 0;
+      border-left: 4px solid #888;
       background: #f7f7f7;
       white-space: pre-wrap;
     }
-    button { margin: 0.25em 0.5em 0.75em 0; }
     .error { color: red; }
     .success { color: green; }
   </style>
 </head>
 <body>
 
-  <h1>🧪 PyScript Full Debug & Execution Toolkit</h1>
+  <h1>🧪 PyScript Debug & Execution Toolkit</h1>
 
   <!-- 1. STATIC INITIALIZATION -->
   <h2>1. Static Initialization Tests</h2>
-  <py-script output="init-output">
+  <py-script output="init-box">
 try:
     import sys
     from js import console, document
     from pyscript import display
 
-    # Static print()
-    print("✅ [static] print() works!")
+    # ✅ display() test
+    display("✅ [static] display() works!", target="init-box")
 
-    # Static display()
-    display("✅ [static] display() works!", target="init-output")
-
-    # Static console.log()
+    # ✅ console.log
     console.log("[static] console.log from Python")
 
-    # Python version
-    document.getElementById("version-output").innerText = f"Python version: {sys.version}"
+    # ✅ Python version
+    document.getElementById("version-box").innerText = f"Python version: {sys.version}"
 
 except Exception as e:
-    # Show any init errors in-page and console
-    display(f"❌ [static] Exception: {e}", target="init-output")
+    display(f"❌ [static] Exception: {e}", target="init-box")
     console.error("[static] Exception:", e)
   </py-script>
 
-  <div id="version-output" class="box"></div>
-  <div id="init-output"      class="box"></div>
+  <div id="version-box" class="box"></div>
+  <div id="init-box"     class="box"></div>
 
   <hr>
 
@@ -62,88 +58,94 @@ except Exception as e:
   <h2>2. JS ↔ Python Interop Tests</h2>
 
   <h3>a) JS → Python callback</h3>
-  <button onclick="jsToPy()">Send from JS to Python</button>
-  <div id="js2py-output" class="box"></div>
+  <button onclick="jsToPy()">Send from JS</button>
+  <div id="js2py" class="box"></div>
 
   <h3>b) Python → JS console</h3>
-  <p>Check your Developer Console for a Python→JS log: <code>[interop]</code></p>
+  <p>Look in your browser console for: <code>[interop]</code></p>
 
-  <!-- Expose the callback and log test -->
   <py-script>
 from js import console
 from pyodide.ffi import create_proxy
 from pyscript import display
 
 # Python→JS console test
-console.log("[interop] console.log from Python in interop block")
+console.log("[interop] Python→JS console.log working")
 
-# Define and expose JS→Python callback
-def receive_from_js(msg):
-    display(f"✅ [interop] JS→Python received: {msg}", target="js2py-output")
+# JS→Python callback
+def receive(msg):
+    display(f"✅ [interop] Received from JS: {msg}", target="js2py")
 
-js.receive_from_js = create_proxy(receive_from_js)
+js.receive_from_js = create_proxy(receive)
   </py-script>
 
+  <hr>
+
   <!-- 3. DYNAMIC EXECUTION METHODS -->
-  <h2>3. Dynamic Execution Methods</h2>
+  <h2>3. Dynamic Execution Methods (using display only)</h2>
 
   <button onclick="method1()">Method 1: Call Python callback</button>
-  <div id="dynamic1" class="box"></div>
+  <div id="dyn1" class="box"></div>
 
   <button onclick="method2()">Method 2: interpreter.run()</button>
-  <div id="dynamic2" class="box"></div>
-  <!-- runner for interpreter.run() -->
-  <py-script id="runner2" output="dynamic2"></py-script>
+  <div id="dyn2" class="box"></div>
+  <py-script id="runner2" output="dyn2"></py-script>
 
   <button onclick="method3()">Method 3: Inject &lt;py-script&gt;</button>
-  <div id="dynamic3" class="box"></div>
+  <div id="dyn3" class="box"></div>
+
+  <noscript>
+    <p class="error">❌ JavaScript disabled—PyScript cannot run.</p>
+  </noscript>
 
   <script>
-    // Method 1: invoke the Python callback defined above
+    // JS→Python interop helper
     function jsToPy() {
       if (window.receive_from_js) {
-        window.receive_from_js("Hello from JS → Python!");
+        window.receive_from_js("Hello from JS!");
       } else {
-        document.getElementById("js2py-output").innerText = "❌ Callback not ready";
+        document.getElementById("js2py").innerText = "❌ Callback not ready";
       }
     }
 
+    // Method 1: re-use the receive_from_js callback
     function method1() {
-      // same callback for Method 1
       jsToPy();
     }
 
-    // Method 2: use pyscript.interpreter.run()
+    // Method 2: interpreter.run() with display()
     async function method2() {
-      const code = `print("✅ [Method 2] interpreter.run() worked!")`;
+      const code = `
+from pyscript import display
+display("✅ [Method 2] interpreter.run() with display() worked!", target="dyn2")
+`;
       try {
         await pyscript.interpreter.run(code, {
           globals: pyscript.interpreter.globals,
-          output: "dynamic2"
+          output: "dyn2"
         });
-      } catch (e) {
-        document.getElementById("dynamic2").innerText = "❌ [Method 2] Exception: " + e;
-        console.error("[Method 2] Exception:", e);
+      } catch (err) {
+        document.getElementById("dyn2").innerText = "❌ [Method 2] Error: " + err;
+        console.error("[Method 2] Error:", err);
       }
     }
 
-    // Method 3: inject a new <py-script> tag dynamically
+    // Method 3: inject a new <py-script> tag with display()
     function method3() {
       try {
         const tag = document.createElement("py-script");
-        tag.setAttribute("output", "dynamic3");
-        tag.textContent = `print("✅ [Method 3] injected tag executed!")`;
+        tag.setAttribute("output", "dyn3");
+        tag.textContent = `
+from pyscript import display
+display("✅ [Method 3] injected tag with display() worked!", target="dyn3")
+`;
         document.body.appendChild(tag);
-      } catch (e) {
-        document.getElementById("dynamic3").innerText = "❌ [Method 3] Exception: " + e;
-        console.error("[Method 3] Exception:", e);
+      } catch (err) {
+        document.getElementById("dyn3").innerText = "❌ [Method 3] Error: " + err;
+        console.error("[Method 3] Error:", err);
       }
     }
   </script>
-
-  <noscript>
-    <p class="error">❌ JavaScript is disabled — PyScript cannot run.</p>
-  </noscript>
 
 </body>
 </html>
