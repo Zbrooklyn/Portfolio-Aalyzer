@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
   <meta charset="utf-8" />
-  <title>PyScript Dynamic Execution – Robust Solution</title>
+  <title>PyScript Dynamic Execution – Final Solution</title>
   <!-- Stable Core build -->
   <link rel="stylesheet" href="https://pyscript.net/releases/2024.1.1/core.css" />
   <script type="module" src="https://pyscript.net/releases/2024.1.1/core.js"></script>
@@ -18,20 +18,17 @@
 </head>
 <body>
 
-  <h1>🧪 PyScript Dynamic Execution – Robust Solution</h1>
-
+  <h1>🧪 PyScript Dynamic Execution – Final Solution</h1>
   <h2>✅ Initialization Tests</h2>
-  <div id="version-output" class="box"></div>
   <div id="display-output" class="box"></div>
 
   <hr>
 
   <h2>🔀 Dynamic Execution Methods</h2>
   <button onclick="method1()">Method 1: Call Python callback</button>
-  <!-- Buttons start disabled -->
-  <button id="btn-method-2" onclick="method2()" disabled>Method 2: interpreter.run() with `display()`</button>
+  <button id="btn-method-2" onclick="method2()" disabled>Method 2: interpreter.run()</button>
   <button onclick="method3()">Method 3: Inject &lt;py-script&gt;</button>
-  <button id="btn-method-4" onclick="method4()" disabled>Method 4: interpreter.run() with `print()`</button>
+  <button id="btn-method-4" onclick="method4()" disabled>Method 4: run() with print()</button>
 
   <h3>▶️ Method 1 Output (callback)</h3>
   <div id="dynamic-1" class="box"></div>
@@ -56,7 +53,6 @@ from pyscript import display
 from pyodide.ffi import create_proxy
 
 display(f"✅ Static display() works. Python {sys.version}", target="display-output")
-document.getElementById("version-output").innerText = f"✅ Direct DOM manipulation works."
 
 def dynamic_run(msg):
     display(f"✅ Method 1 callback says: {msg}", target="dynamic-1")
@@ -64,15 +60,16 @@ def dynamic_run(msg):
 js.dynamic_run = create_proxy(dynamic_run)
   </py-script>
 
+  <!-- This script must come AFTER the py-script tag -->
   <script>
-    // ** THE FIX: Use an event listener ONLY to enable the buttons. **
+    // ** THE FINAL FIX: Wait for the event, then use the global object. **
     document.getElementById('main-pyscript').addEventListener('py:done', () => {
-        console.log("PyScript main interpreter is ready. Enabling buttons.");
+        console.log("PyScript is ready. Enabling buttons.");
         document.getElementById('btn-method-2').disabled = false;
         document.getElementById('btn-method-4').disabled = false;
     });
 
-    // Method 1: Works as before.
+    // Method 1: Callback - Works as before.
     function method1() {
       if (window.dynamic_run) {
         window.dynamic_run("Hello from JS → Python callback!");
@@ -81,52 +78,43 @@ js.dynamic_run = create_proxy(dynamic_run)
       }
     }
 
-    // Method 2: Get the interpreter on-demand when the button is clicked.
+    // Method 2: Use the global pyscript.interpreter object.
     async function method2() {
-      const interpreter = document.getElementById('main-pyscript').interpreter;
-      if (!interpreter) {
-        document.getElementById("dynamic-2").innerText = "❌ Interpreter object not found on element.";
+      if (typeof pyscript === 'undefined' || !pyscript.interpreter) {
+        document.getElementById("dynamic-2").innerText = "❌ Global pyscript.interpreter not available.";
         return;
       }
       const code = `
 from pyscript import display
-display("✅ Method 2: interpreter.run() with <b>display(target=...)</b> worked!", target="dynamic-2")
+display("✅ Method 2: Global <b>pyscript.interpreter.run()</b> worked!", target="dynamic-2")
 `;
       try {
-        await interpreter.run(code);
+        await pyscript.interpreter.run(code);
       } catch (err) {
         console.error("Method 2 error:", err);
         document.getElementById("dynamic-2").innerText = "❌ Method 2 failed: " + err;
       }
     }
 
-    // Method 3: Works as before.
+    // Method 3: Injection - Works as before.
     function method3() {
-      try {
-        const tag = document.createElement("py-script");
-        tag.textContent = `
+      const tag = document.createElement("py-script");
+      tag.textContent = `
 from pyscript import display
-display("✅ Method 3: injected &lt;py-script&gt; with <b>display(target=...)</b> worked!", target="dynamic-3")
+display("✅ Method 3: Injected &lt;py-script&gt; worked!", target="dynamic-3")
 `;
-        document.body.appendChild(tag);
-      } catch (err) {
-        console.error("Method 3 error:", err);
-        document.getElementById("dynamic-3").innerText = "❌ Method 3 failed: " + err;
-      }
+      document.body.appendChild(tag);
     }
 
-    // Method 4: Get the interpreter on-demand when the button is clicked.
+    // Method 4: Use the global pyscript.interpreter object with a print output.
     async function method4() {
-        const interpreter = document.getElementById('main-pyscript').interpreter;
-        if (!interpreter) {
-          document.getElementById("dynamic-4").innerText = "❌ Interpreter object not found on element.";
+        if (typeof pyscript === 'undefined' || !pyscript.interpreter) {
+          document.getElementById("dynamic-4").innerText = "❌ Global pyscript.interpreter not available.";
           return;
         }
-        const code = `
-print("✅ Method 4: interpreter.run() with print() and the 'output' option worked!")
-`;
+        const code = `print("✅ Method 4: Global run() with print() redirected successfully!")`;
         try {
-            await interpreter.run(code, { output: "dynamic-4" });
+            await pyscript.interpreter.run(code, { output: "dynamic-4" });
         } catch (err) {
             console.error("Method 4 error:", err);
             document.getElementById("dynamic-4").innerText = "❌ Method 4 failed: " + err;
