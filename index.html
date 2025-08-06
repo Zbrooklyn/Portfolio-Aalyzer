@@ -2,10 +2,18 @@
 <html lang="en">
 <head>
   <meta charset="utf-8" />
-  <title>PyScript Dynamic Execution – Full Suite</title>
+  <title>PyScript Dynamic Execution – With Packages</title>
   <!-- Stable Core build -->
   <link rel="stylesheet" href="https://pyscript.net/releases/2024.1.1/core.css" />
   <script type="module" src="https://pyscript.net/releases/2024.1.1/core.js"></script>
+  
+  <!-- ****************************************************** -->
+  <!-- ** NEW: Add py-config to declare needed packages ** -->
+  <!-- ****************************************************** -->
+  <py-config>
+    packages = ["numpy"]
+  </py-config>
+
   <style>
     body { font-family: sans-serif; padding: 20px; line-height: 1.6; }
     h2 { margin-top: 2rem; }
@@ -19,7 +27,7 @@
 </head>
 <body>
 
-  <h1>🧪 PyScript Dynamic Execution – Full Suite</h1>
+  <h1>🧪 PyScript Dynamic Execution – With Packages</h1>
   <h2>✅ Initialization Tests</h2>
   <div id="display-output" class="box"></div>
 
@@ -45,27 +53,20 @@
 
   <hr>
 
-  <!-- ****************************************************** -->
-  <!-- ** NEW SECTION: Live Code Execution ** -->
-  <!-- ****************************************************** -->
   <h2>🚀 Live Code Execution Test</h2>
-  <p>Type any Python code below and run it. This uses the same robust callback as Method 4.</p>
+  <p>Type any Python code below and run it. <b>Numpy is now available.</b></p>
   <textarea id="custom-code-area" rows="6">
 import numpy as np
 
-# This will fail unless numpy is in your py-config
-# a = np.array([1, 2, 3])
-# print(f"My array: {a}")
-# print(f"The sum is: {np.sum(a)}")
-
-print("Hello from the live textarea!")
-for i in range(5):
-    print(f"Number {i}")
+# This will now work because numpy is loaded via py-config
+a = np.array([1, 2, 3, 4, 5])
+print(f"My numpy array: {a}")
+print(f"The sum is: {np.sum(a)}")
+print(f"The mean is: {np.mean(a)}")
   </textarea>
   <button onclick="runCustomCode()">Run Custom Code</button>
   <h3>▶️ Live Code Output</h3>
   <div id="custom-code-output" class="box"></div>
-  <!-- ****************************************************** -->
 
 
   <!-- Initialization block with all callback functions -->
@@ -80,21 +81,19 @@ from pyodide.ffi import create_proxy
 # --- Initial Display ---
 display(f"✅ PyScript Initialized. Python {sys.version}", target="display-output")
 
-# --- Callback for Method 1: Simple Message ---
+# --- Callbacks (Unchanged) ---
 def dynamic_run(msg):
     display(f"✅ Method 1 (Simple Callback) says: {msg}", target="dynamic-1")
 
-# --- Callback for Method 2: Execute code that has its own display() call ---
 def exec_direct(code):
     try:
         exec(code)
     except Exception as e:
         raise e
 
-# --- Callback for Method 4 & Live Execution: Execute code and capture its print() output ---
 def exec_and_capture_print(code, target_id):
     output_el = document.getElementById(target_id)
-    output_el.classList.remove("error") # Reset error state
+    output_el.classList.remove("error")
     old_stdout = sys.stdout
     old_stderr = sys.stderr
     redirected_output = io.StringIO()
@@ -103,8 +102,8 @@ def exec_and_capture_print(code, target_id):
     sys.stderr = redirected_error
     try:
         exec(code)
-        sys.stdout = old_stdout # Restore
-        sys.stderr = old_stderr # Restore
+        sys.stdout = old_stdout
+        sys.stderr = old_stderr
         
         err = redirected_error.getvalue()
         if err:
@@ -112,10 +111,9 @@ def exec_and_capture_print(code, target_id):
             display(err, target=target_id)
         else:
             display(redirected_output.getvalue(), target=target_id)
-
     except Exception as e:
-        sys.stdout = old_stdout # Restore on error
-        sys.stderr = old_stderr # Restore on error
+        sys.stdout = old_stdout
+        sys.stderr = old_stderr
         output_el.classList.add("error")
         display(str(e), target=target_id)
 
@@ -126,46 +124,32 @@ js.exec_and_capture_print = create_proxy(exec_and_capture_print)
 
   </py-script>
 
-  <!-- JavaScript block that uses the new callbacks -->
+  <!-- JavaScript block (Unchanged) -->
   <script>
-    // Method 1
-    function method1() {
-      if (window.dynamic_run) window.dynamic_run("Hello from JS!");
-    }
+    function method1() { if (window.dynamic_run) window.dynamic_run("Hello from JS!"); }
 
-    // Method 2
     function method2() {
       const code = `from pyscript import display; display("✅ Method 2 (Execute Code via Callback) worked!", target="dynamic-2")`;
-      try {
-        if(window.exec_direct) window.exec_direct(code);
-      } catch (err) {
-        document.getElementById("dynamic-2").innerText = "❌ Method 2 Failed: " + err;
-      }
+      try { if(window.exec_direct) window.exec_direct(code); } 
+      catch (err) { document.getElementById("dynamic-2").innerText = "❌ Method 2 Failed: " + err; }
     }
 
-    // Method 3
     function method3() {
       const tag = document.createElement("py-script");
       tag.textContent = `from pyscript import display; display("✅ Method 3 (Tag Injection) worked!", target="dynamic-3")`;
       document.body.appendChild(tag);
     }
 
-    // Method 4
     function method4() {
       const code = `print("✅ Method 4 ('print' capture) worked!")\nprint("   This text was captured from stdout.")`;
-      try {
-        if(window.exec_and_capture_print) window.exec_and_capture_print(code, "dynamic-4");
-      } catch (err) {
-        document.getElementById("dynamic-4").innerText = "❌ Method 4 Failed: " + err;
-      }
+      try { if(window.exec_and_capture_print) window.exec_and_capture_print(code, "dynamic-4"); }
+      catch (err) { document.getElementById("dynamic-4").innerText = "❌ Method 4 Failed: " + err; }
     }
 
-    // ** NEW JAVASCRIPT FUNCTION for the Live Editor **
     function runCustomCode() {
       const code = document.getElementById("custom-code-area").value;
       const outputEl = document.getElementById("custom-code-output");
-      outputEl.textContent = ''; // Clear previous output
-      
+      outputEl.textContent = '';
       try {
         if (window.exec_and_capture_print) {
           window.exec_and_capture_print(code, "custom-code-output");
