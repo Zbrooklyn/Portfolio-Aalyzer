@@ -1,21 +1,43 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-  <meta charset="utf‑8" />
-  <meta name="viewport" content="width=device‑width,initial‑scale=1.0" />
-  <title>PyScript on GitHub Pages</title>
-  <link
-    rel="stylesheet"
-    href="https://pyscript.net/releases/2024.11.1/core.css"
-  />
+  <meta charset="utf-8" />
+  <title>PyScript Debugging Test</title>
+  <link rel="stylesheet" href="https://pyscript.net/releases/2024.11.1/core.css" />
   <script type="module" src="https://pyscript.net/releases/2024.11.1/core.js"></script>
 </head>
 <body>
-  <h1>PyScript Test</h1>
-  <div id="output"></div>
+  <h1>🧪 PyScript Debugging Test</h1>
+  <div id="print-output"></div>
+  <div id="display-output"></div>
+  <div id="version-info"></div>
+  <hr>
+  
+  <py-script output="print-output">
+    try:
+        from js import console
+        import sys
+        console.log("✅ PyScript is running")
+        print("✅ print() is working")
+        
+        from pyscript import display
+        display("✅ display() is working", target="display-output")
 
-  <py-script output="output">
-    display("Hello from Python!")
+        from js import document
+        document.getElementById("version-info").innerText = f"✅ Python version: {sys.version}"
+    except Exception as e:
+        print("❌ Exception caught:", e)
+        from js import console
+        console.error("❌ Python error:", e)
   </py-script>
+
+  <noscript>
+    <p style="color:red;">❌ JavaScript is disabled or blocked.</p>
+  </noscript>
+  <script>
+    window.addEventListener('load', () => {
+      console.log("✅ HTML page fully loaded");
+    });
+  </script>
 </body>
 </html>
