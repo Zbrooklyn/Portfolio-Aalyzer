@@ -25,12 +25,8 @@
       border-left: 4px solid #ccc;
       background: #f9f9f9;
     }
-    .success {
-      color: green;
-    }
-    .error {
-      color: red;
-    }
+    .success { color: green; }
+    .error { color: red; }
   </style>
 </head>
 <body>
@@ -56,6 +52,9 @@
   <h2>✅ Runtime Python Execution</h2>
   <button id="run-btn">Run dynamic Python</button>
   <div id="dynamic-output" class="box"></div>
+
+  <!-- Hidden py-script block to enable output from run() -->
+  <py-script id="dynamic-runner" output="dynamic-output"></py-script>
 
   <hr>
 
@@ -93,19 +92,20 @@ except Exception as e:
     }
 
     document.getElementById("run-btn").addEventListener("click", async () => {
-      const dynamicOutput = document.getElementById("dynamic-output");
+      const code = `
+print("✅ Dynamic Python ran successfully!")
+`
       try {
-        const code = `
-from pyscript import display
-display("✅ This was dynamically injected from JS!", target="dynamic-output")
-        `
-        const result = await pyscript.interpreter.run(code)
-        console.log("✅ Dynamic Python executed:", result)
+        await pyscript.interpreter.run(code, {
+          globals: pyscript.interpreter.globals,
+          output: "dynamic-output"
+        });
+        console.log("✅ Dynamic Python executed.");
       } catch (err) {
-        console.error("❌ Dynamic execution failed:", err)
-        dynamicOutput.innerText = "❌ Error running Python dynamically."
+        console.error("❌ Dynamic execution failed:", err);
+        document.getElementById("dynamic-output").innerText = "❌ Error running Python dynamically.";
       }
-    })
+    });
   </script>
 
   <noscript>
