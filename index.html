@@ -6,96 +6,87 @@
   <link rel="stylesheet" href="https://pyscript.net/releases/2024.11.1/core.css" />
   <script type="module" src="https://pyscript.net/releases/2024.11.1/core.js"></script>
   <style>
-    body { font-family: sans-serif; padding: 20px; }
-    h2 { margin-top: 30px; }
-    code { background: #eee; padding: 2px 4px; border-radius: 4px; }
+    .box { padding: 10px; background: #f9f9f9; margin: 10px 0; border-left: 4px solid #ccc; }
     .success { color: green; }
     .error { color: red; }
-    .box { padding: 10px; margin: 10px 0; border-left: 4px solid #ccc; background: #f9f9f9; }
   </style>
 </head>
 <body>
 
-  <h1>🧪 PyScript Full Debugging Toolkit</h1>
+<h1>🧪 PyScript Full Debugging Toolkit</h1>
 
-  <h2>✅ PyScript Version</h2>
-  <div id="version-output" class="box"></div>
+<h2>✅ PyScript Version</h2>
+<div id="version-output" class="box"></div>
 
-  <h2>✅ print() Output</h2>
-  <div id="print-output" class="box"></div>
+<h2>✅ print() Output</h2>
+<div id="print-output" class="box"></div>
 
-  <h2>✅ display() Output</h2>
-  <div id="display-output" class="box"></div>
+<h2>✅ display() Output</h2>
+<div id="display-output" class="box"></div>
 
-  <h2>✅ JS → Python Communication</h2>
-  <button onclick="sendToPython()">Send Message to Python</button>
-  <div id="js-to-py-output" class="box"></div>
+<h2>✅ JS → Python Communication</h2>
+<button onclick="sendToPython()">Send Message to Python</button>
+<div id="js-to-py-output" class="box"></div>
 
-  <h2>✅ Python → JS Console Logs</h2>
-  <p>Check your browser's console (DevTools > Console tab)</p>
+<h2>✅ Python → JS Console Logs</h2>
+<p>Check your browser's console (DevTools > Console tab)</p>
 
-  <h2>✅ Runtime Python Execution</h2>
-  <button onclick="injectPython()">Run dynamic Python</button>
-  <div id="dynamic-output" class="box"></div>
+<h2>✅ Runtime Python Execution</h2>
+<button id="run-btn" disabled>Run dynamic Python</button>
+<div id="dynamic-output" class="box"></div>
 
-  <hr>
+<hr>
 
-  <py-script output="print-output">
+<py-script output="print-output">
 try:
+    import js
     from js import console, document
-
     import sys
-    print("✅ print() is working")
-    console.log("✅ Python console log")
-
     from pyscript import display
+    from pyodide.ffi import create_proxy
+
+    print("✅ print() is working")
+    console.log("✅ Python log to console")
+
     display("✅ display() is working", target="display-output")
+    document.getElementById("version-output").innerText = f"Python version: {sys.version}"
 
-    # Python version display
-    version = f"Python version: {sys.version}"
-    document.getElementById("version-output").innerText = version
-
-    # Define a callback to receive JS messages
+    # JS → Python test
     def receive_from_js(msg):
         display(f"✅ Received from JS: {msg}", target="js-to-py-output")
-
-    # Expose to JS
-    from pyodide.ffi import create_proxy
     js.receive_from_js = create_proxy(receive_from_js)
 
+    # Enable dynamic run button
+    js.document.getElementById("run-btn").disabled = False
 except Exception as e:
     print("❌ Exception caught:", e)
     console.error("❌ Python error:", e)
-  </py-script>
+</py-script>
 
-  <script>
-    function sendToPython() {
-      if (window.receive_from_js) {
-        window.receive_from_js("Hello from JavaScript!")
-      } else {
-        document.getElementById("js-to-py-output").innerText = "❌ receive_from_js is not defined yet"
-      }
+<noscript>
+  <p class="error">❌ JavaScript is disabled or blocked.</p>
+</noscript>
+
+<script>
+  function sendToPython() {
+    if (window.receive_from_js) {
+      window.receive_from_js("Hello from JS!")
+    } else {
+      document.getElementById("js-to-py-output").innerText = "❌ Python handler not ready"
     }
+  }
 
-    function injectPython() {
-      const pyCode = `
-try:
-    from pyscript import display
-    display("✅ This code was injected at runtime!", target="dynamic-output")
-except Exception as e:
-    from js import console
-    console.error("❌ Injected code error:", e)
-      `;
-      pyscript.runPythonAsync(pyCode);
+  document.getElementById("run-btn").addEventListener("click", () => {
+    if (window.pyscript?.runPythonAsync) {
+      pyscript.runPythonAsync(`
+from pyscript import display
+display("✅ This was dynamically injected from JS!", target="dynamic-output")
+`)
+    } else {
+      document.getElementById("dynamic-output").innerText = "❌ PyScript not ready yet."
     }
+  })
+</script>
 
-    window.addEventListener("load", () => {
-      console.log("✅ HTML page loaded");
-    });
-  </script>
-
-  <noscript>
-    <p class="error">❌ JavaScript is disabled. PyScript cannot run.</p>
-  </noscript>
 </body>
 </html>
