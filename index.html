@@ -1,171 +1,581 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-  <meta charset="utf-8" />
-  <title>PyScript Dynamic Execution – With Packages</title>
-  <!-- Stable Core build -->
-  <link rel="stylesheet" href="https://pyscript.net/releases/2024.1.1/core.css" />
-  <script type="module" src="https://pyscript.net/releases/2024.1.1/core.js"></script>
-  
-  <!-- ****************************************************** -->
-  <!-- ** NEW: Add py-config to declare needed packages ** -->
-  <!-- ****************************************************** -->
-  <py-config>
-    packages = ["numpy"]
-  </py-config>
-
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Portfolio Backtester v5.4.1</title>
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/chartjs-adapter-date-fns/dist/chartjs-adapter-date-fns.bundle.min.js"></script>
   <style>
-    body { font-family: sans-serif; padding: 20px; line-height: 1.6; }
-    h2 { margin-top: 2rem; }
-    h3 { margin-top: 1.5rem; }
-    .box { padding: 0.5rem; margin: 0.5rem 0; border-left: 4px solid #ccc; background: #f9f9f9; white-space: pre-wrap; }
-    button { margin-right: 0.5rem; margin-bottom: 0.5rem; }
-    textarea { width: 100%; box-sizing: border-box; background: #fdfdfd; border: 1px solid #ccc; }
-    .success { color: green; }
-    .error   { color: red; }
+    :root {
+      --primary-color: #007aff; --primary-hover: #005ecb; --border-color: #dee2e6;
+      --background-main: #f0f2f5; --background-card: #ffffff; --text-color: #212529; 
+      --text-light: #6c757d; --error-color: #d93025; --green: #34c759; --red: #ff3b30;
+      --debug-color: #ff9500;
+    }
+    html { scroll-behavior: smooth; }
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+      background-color: var(--background-main); color: var(--text-color); margin: 0; padding: 0 0 40px 0;
+    }
+    .app-container { max-width: 1200px; margin: 0 auto; padding: 10px; }
+    h1, h2, h3 { color: var(--text-color); }
+    h1 { font-size: 26px; margin-bottom: 5px; text-align: center; }
+    h2 { font-size: 20px; margin-top: 25px; border-bottom: 1px solid var(--border-color); padding-bottom: 8px; }
+    h3 { font-size: 18px; margin-bottom: 15px; }
+    .version { font-size: 14px; color: var(--text-light); margin-top: 0; margin-bottom: 20px; text-align: center; }
+    .section-card {
+      background: var(--background-card); border-radius: 10px; padding: 20px;
+      margin-bottom: 20px; box-shadow: 0 2px 8px rgba(0,0,0,0.07);
+    }
+    .controls-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 18px; }
+    .control-group { display: flex; flex-direction: column; gap: 6px; }
+    .control-group label, .control-group-row label { font-weight: 600; font-size: 14px; }
+
+    .app-container input[type="text"],
+    .app-container input[type="number"],
+    .app-container input[type="date"],
+    .app-container select {
+        width: 100%;
+        box-sizing: border-box; 
+    }
+
+    .control-group input, .control-group select {
+      font-size: 15px; padding: 10px; border-radius: 6px; border: 1px solid var(--border-color);
+    }
+
+    #portfolios-container { display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 15px; }
+    .portfolio-card { border: 1px solid transparent; border-radius: 8px; padding: 15px; background: #f8f9fa; }
+    .portfolio-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px; }
+    .portfolio-header input[type="text"] { font-size: 18px; font-weight: bold; border: none; background: transparent; padding: 5px; width: 70%; }
+    .remove-portfolio-btn { background: #e9ecef; color: var(--text-light); border: none; border-radius: 6px; padding: 5px 8px; cursor: pointer; font-size: 12px; font-weight: 600; }
+    .ticker-input-row { display: flex; flex-wrap: nowrap; gap: 8px; margin-bottom: 8px; align-items: center; }
+    .ticker-input-row input { text-transform: uppercase; padding: 8px; border: 1px solid var(--border-color); border-radius: 6px; font-size: 14px; }
+    .remove-ticker-btn { background: var(--red); color: white; border: none; border-radius: 50%; width: 26px; height: 26px; cursor: pointer; font-size: 14px; line-height: 26px; text-align: center; }
+    .add-btn { background: var(--primary-color); color: white; border: none; border-radius: 8px; padding: 10px 15px; cursor: pointer; font-weight: 500; }
+    
+    .run-button-container { display: flex; justify-content: center; align-items: center; gap: 15px; margin-top: 20px; }
+    #run-backtest-btn { font-size: 16px; padding: 12px 30px; }
+    #run-backtest-btn:disabled { background-color: #a0c3ff; cursor: not-allowed; }
+
+    .projections-button-wrapper { display: flex; justify-content: center; margin-top: 20px; }
+    
+    .outcome-explanation {
+        font-size: 12px; color: var(--text-light); font-weight: 400;
+        display: block; margin-top: 2px; line-height: 1.3;
+    }
+
+    #debug-container {
+      background-color: #fffbe6; border: 1px solid var(--debug-color); border-radius: 8px;
+      margin-top: 20px; padding: 15px; font-family: monospace; font-size: 13px;
+      color: #8a6d3b; max-height: 200px; overflow-y: auto; white-space: pre-wrap;
+    }
+    #debug-container h4 { margin-top: 0; color: #66512c; }
+
+    .loader { display: none; width: 24px; height: 24px; border: 3px solid var(--primary-color); border-bottom-color: transparent; border-radius: 50%; animation: rotation 1s linear infinite; }
+    @keyframes rotation { 0% { transform: rotate(360deg); } 100% { transform: rotate(0deg); } }
+    #error-container { color: var(--error-color); text-align: center; font-weight: bold; margin: 15px auto; max-width: 600px; }
+    .table-container { overflow-x: auto; -webkit-overflow-scrolling: touch; }
+    table { border-collapse: collapse; width: 100%; margin-bottom: 25px; }
+    th, td { border: 1px solid var(--border-color); padding: 10px 12px; text-align: right; font-size: 14px; white-space: nowrap; vertical-align: top; }
+    th { background: #e9ecef; font-weight: 600; text-align: center; }
+    td:first-child, th:first-child { text-align: left; font-weight: bold; white-space: normal; }
+    .positive { color: #1e7e34; } .negative { color: var(--red); }
+    .hidden { display: none; }
+    
+    @media (max-width: 768px) {
+      .app-container { padding: 5px; } .section-card { padding: 15px; }
+      h1 { font-size: 24px; } h2 { font-size: 20px; }
+      .controls-grid { grid-template-columns: 1fr 1fr; gap: 12px; }
+    }
   </style>
 </head>
 <body>
-
-  <h1>🧪 PyScript Dynamic Execution – With Packages</h1>
-  <h2>✅ Initialization Tests</h2>
-  <div id="display-output" class="box"></div>
-
-  <hr>
-
-  <h2>🔀 Dynamic Execution Methods</h2>
-  <button onclick="method1()">Method 1: Simple Callback</button>
-  <button onclick="method2()">Method 2: Execute Code via Callback</button>
-  <button onclick="method3()">Method 3: Inject &lt;py-script&gt; Tag</button>
-  <button onclick="method4()">Method 4: Capture `print` via Callback</button>
-
-  <h3>▶️ Method 1 Output (Simple Callback)</h3>
-  <div id="dynamic-1" class="box"></div>
-
-  <h3>▶️ Method 2 Output (Execute Code)</h3>
-  <div id="dynamic-2" class="box"></div>
-
-  <h3>▶️ Method 3 Output (Injection)</h3>
-  <div id="dynamic-3" class="box"></div>
-
-  <h3>▶️ Method 4 Output (Capture `print`)</h3>
-  <div id="dynamic-4" class="box"></div>
-
-  <hr>
-
-  <h2>🚀 Live Code Execution Test</h2>
-  <p>Type any Python code below and run it. <b>Numpy is now available.</b></p>
-  <textarea id="custom-code-area" rows="6">
-import numpy as np
-
-# This will now work because numpy is loaded via py-config
-a = np.array([1, 2, 3, 4, 5])
-print(f"My numpy array: {a}")
-print(f"The sum is: {np.sum(a)}")
-print(f"The mean is: {np.mean(a)}")
-  </textarea>
-  <button onclick="runCustomCode()">Run Custom Code</button>
-  <h3>▶️ Live Code Output</h3>
-  <div id="custom-code-output" class="box"></div>
-
-
-  <!-- Initialization block with all callback functions -->
-  <py-script>
-import js
-from js import console, document
-import sys
-import io
-from pyscript import display
-from pyodide.ffi import create_proxy
-
-# --- Initial Display ---
-display(f"✅ PyScript Initialized. Python {sys.version}", target="display-output")
-
-# --- Callbacks (Unchanged) ---
-def dynamic_run(msg):
-    display(f"✅ Method 1 (Simple Callback) says: {msg}", target="dynamic-1")
-
-def exec_direct(code):
-    try:
-        exec(code)
-    except Exception as e:
-        raise e
-
-def exec_and_capture_print(code, target_id):
-    output_el = document.getElementById(target_id)
-    output_el.classList.remove("error")
-    old_stdout = sys.stdout
-    old_stderr = sys.stderr
-    redirected_output = io.StringIO()
-    redirected_error = io.StringIO()
-    sys.stdout = redirected_output
-    sys.stderr = redirected_error
-    try:
-        exec(code)
-        sys.stdout = old_stdout
-        sys.stderr = old_stderr
+  <div class="app-container">
+    <h1>Portfolio Backtester</h1>
+    <p class="version">Version 5.4.1</p> 
+    <div class="section-card">
+      <h2>1. Setup</h2>
+      <div class="controls-grid">
+        <div class="control-group"><label for="start-date">Start Date</label><input type="date" id="start-date" value="2018-01-01"></div>
+        <div class="control-group"><label for="end-date">End Date</label><input type="date" id="end-date" value="2023-12-31"></div>
+        <div class="control-group"><label for="initial-investment">Initial Investment ($)</label><input type="number" id="initial-investment" value="10000"></div>
+        <div class="control-group"><label for="contribution-amount">Contribution Amount ($)</label><input type="number" id="contribution-amount" value="500"></div>
+        <div class="control-group"><label for="contribution-frequency">Contribution Frequency</label><select id="contribution-frequency"><option value="monthly">Monthly</option><option value="quarterly">Quarterly</option><option value="annually">Annually</option><option value="none">None</option></select></div>
+        <div class="control-group"><label for="rebalance-frequency">Rebalance Frequency</label><select id="rebalance-frequency"><option value="annually">Annually</option><option value="quarterly">Quarterly</option><option value="never">Never</option></select></div>
+        <div class="control-group"><label for="reinvest-dividends">Reinvest Dividends?</label><select id="reinvest-dividends"><option value="true">True</option><option value="false">False</option></select></div>
+        <div class="control-group"><label for="risk-free-rate">Risk-Free Rate (%)</label><input type="number" id="risk-free-rate" value="1.5"></div>
+        <div class="control-group"><label for="dividend-tax-rate">Dividend Tax Rate (%)</label><input type="number" id="dividend-tax-rate" value="15"></div>
+        <div class="control-group"><label for="gains-tax-rate">Capital Gains Tax (%)</label><input type="number" id="gains-tax-rate" value="15"></div>
+        <div class="control-group"><label for="benchmark1">Benchmark 1</label><input type="text" id="benchmark1" value="SPY"></div>
+        <div class="control-group"><label for="benchmark2">Benchmark 2</label><input type="text" id="benchmark2" value="QQQ"></div>
+      </div>
+    </div>
+    <div class="section-card">
+        <h2>2. Configure Portfolios</h2>
+        <div id="portfolios-container"></div>
+        <button id="add-portfolio-btn" class="add-btn" style="margin-top: 15px;">+ Add Portfolio</button>
+    </div>
+    
+    <div class="run-button-container">
+        <button id="run-backtest-btn" class="add-btn">Run Backtest</button>
+        <div id="loader" class="loader"></div>
+    </div>
+    <div id="error-container"></div>
+    <div id="results-area" class="section-card hidden" style="padding-top: 5px;"></div>
+    
+    <div id="projections-area" class="section-card hidden">
+        <h2>4. Future Projections</h2>
         
-        err = redirected_error.getvalue()
-        if err:
-            output_el.classList.add("error")
-            display(err, target=target_id)
-        else:
-            display(redirected_output.getvalue(), target=target_id)
-    except Exception as e:
-        sys.stdout = old_stdout
-        sys.stderr = old_stderr
-        output_el.classList.add("error")
-        display(str(e), target=target_id)
+        <div class="control-group" style="margin-bottom: 20px;">
+            <label for="projection-goal">What is your goal for this projection?</label>
+            <select id="projection-goal">
+                <option value="grow" selected>Continue saving and grow my portfolio</option>
+                <option value="retire">Plan for a future retirement income</option>
+            </select>
+        </div>
 
-# --- Expose all functions to JavaScript ---
-js.dynamic_run = create_proxy(dynamic_run)
-js.exec_direct = create_proxy(exec_direct)
-js.exec_and_capture_print = create_proxy(exec_and_capture_print)
+        <div id="grow-settings">
+            <div class="controls-grid">
+                <div class="control-group"><label for="grow-projection-period">Projection Period</label><select id="grow-projection-period"><option value="10">10 Years</option><option value="20">20 Years</option><option value="30">30 Years</option></select></div>
+                <div class="control-group"><label for="grow-sim-quality">Simulation Quality</label><select id="grow-sim-quality"><option value="1000">Fast</option><option value="5000" selected>Recommended</option><option value="10000">High Precision</option></select></div>
+                <div class="control-group"><label for="grow-inflation-rate">Assumed Annual Inflation (%)</label><input type="number" id="grow-inflation-rate" value="3.0"></div>
+                <div class="control-group"><label for="grow-contribution-increase">Annual Contribution Increase (%)</label><input type="number" id="grow-contribution-increase" value="2.0"></div>
+            </div>
+        </div>
 
-  </py-script>
+        <div id="retire-settings" class="hidden">
+            <div class="controls-grid">
+                <div class="control-group"><label for="years-until-retirement">1. Years Until Retirement (Saving)</label><input type="number" id="years-until-retirement" value="10"></div>
+                <div class="control-group"><label for="income-phase-duration">3. Retirement Duration (Income)</label><input type="number" id="income-phase-duration" value="30"></div>
+                 <div class="control-group"><label for="retire-contribution-increase">Annual Saving Increase (%)</label><input type="number" id="retire-contribution-increase" value="2.0"></div>
+                <div class="control-group"><label for="retire-inflation-rate">Assumed Annual Inflation (%)</label><input type="number" id="retire-inflation-rate" value="3.0"></div>
+            </div>
+            <div class="control-group" style="margin-top: 15px;">
+                <label for="withdrawal-strategy">2. Retirement Income Plan</label>
+                <select id="withdrawal-strategy">
+                    <option value="dividends">Live Off Dividend Income Only</option>
+                    <option value="fixed_amount" selected>Withdraw a Fixed Amount Annually</option>
+                    <option value="percentage">Withdraw a Percentage Annually</option>
+                </select>
+            </div>
+            <div id="withdrawal-settings-container" style="margin-top: 15px;">
+                <div class="control-group hidden" id="fixed_amount_setting"><label for="annual-withdrawal-amount">Annual Withdrawal Amount ($)</label><input type="number" id="annual-withdrawal-amount" value="50000"></div>
+                <div class="control-group hidden" id="percentage_setting"><label for="annual-withdrawal-rate">Annual Withdrawal Rate (%)</label><input type="number" id="annual-withdrawal-rate" value="4"></div>
+            </div>
+        </div>
 
-  <!-- JavaScript block (Unchanged) -->
-  <script>
-    function method1() { if (window.dynamic_run) window.dynamic_run("Hello from JS!"); }
+        <div class="projections-button-wrapper"><button id="run-projections-btn" class="add-btn">Run Projections</button></div>
+        <div id="debug-container" class="hidden"><h4>Projection Debug Log:</h4></div>
+        
+        <div id="projections-results-area" class="hidden" style="margin-top: 20px;"></div>
+        <div id="projection-chart-container" class="hidden">
+            <div style="width: 100%; max-width: 900px; margin: auto; padding-bottom: 20px;">
+                <canvas id="projection-chart"></canvas>
+            </div>
+        </div>
+    </div>
+  </div>
 
-    function method2() {
-      const code = `from pyscript import display; display("✅ Method 2 (Execute Code via Callback) worked!", target="dynamic-2")`;
-      try { if(window.exec_direct) window.exec_direct(code); } 
-      catch (err) { document.getElementById("dynamic-2").innerText = "❌ Method 2 Failed: " + err; }
+<script>
+document.addEventListener("DOMContentLoaded", () => {
+    let historicalResults = [];
+    let projectionChartInstance = null;
+    let primaryBenchmarkTicker = 'SPY';
+
+    const runBtn = document.getElementById('run-backtest-btn');
+    const loader = document.getElementById('loader');
+    const errorContainer = document.getElementById('error-container');
+    const resultsArea = document.getElementById('results-area');
+    const projectionsArea = document.getElementById('projections-area');
+    const portfoliosContainer = document.getElementById('portfolios-container');
+    const addPortfolioBtn = document.getElementById('add-portfolio-btn');
+    let portfolioCount = 0;
+
+    const projectionsResultsArea = document.getElementById('projections-results-area');
+    const projectionChartContainer = document.getElementById('projection-chart-container');
+    const runProjectionsBtn = document.getElementById('run-projections-btn');
+    const debugContainer = document.getElementById('debug-container');
+    const projectionGoalSelect = document.getElementById('projection-goal');
+    const growSettings = document.getElementById('grow-settings');
+    const retireSettings = document.getElementById('retire-settings');
+    const withdrawalStrategySelect = document.getElementById('withdrawal-strategy');
+    const fixedAmountSetting = document.getElementById('fixed_amount_setting');
+    const percentageSetting = document.getElementById('percentage_setting');
+
+    projectionGoalSelect.addEventListener('change', () => {
+        const isRetire = projectionGoalSelect.value === 'retire';
+        growSettings.classList.toggle('hidden', isRetire);
+        retireSettings.classList.toggle('hidden', !isRetire);
+        if (isRetire) { updateWithdrawalSettingsVisibility(); }
+    });
+    withdrawalStrategySelect.addEventListener('change', updateWithdrawalSettingsVisibility);
+
+    function updateWithdrawalSettingsVisibility() {
+        const strategy = withdrawalStrategySelect.value;
+        fixedAmountSetting.classList.toggle('hidden', strategy !== 'fixed_amount');
+        percentageSetting.classList.toggle('hidden', strategy !== 'percentage');
     }
-
-    function method3() {
-      const tag = document.createElement("py-script");
-      tag.textContent = `from pyscript import display; display("✅ Method 3 (Tag Injection) worked!", target="dynamic-3")`;
-      document.body.appendChild(tag);
+    projectionGoalSelect.dispatchEvent(new Event('change'));
+    
+    function logToPage(message, isError = false) {
+        debugContainer.classList.remove('hidden'); const p = document.createElement('p');
+        p.textContent = `[${new Date().toLocaleTimeString()}] ${message}`;
+        if (isError) { p.style.color = 'var(--error-color)'; p.style.fontWeight = 'bold'; }
+        debugContainer.appendChild(p); debugContainer.scrollTop = debugContainer.scrollHeight;
     }
+    
+    function addPortfolio() { portfolioCount++; const card = document.createElement('div'); card.className = 'portfolio-card'; card.id = `portfolio-${portfolioCount}`; card.innerHTML = `<div class="portfolio-header"><input type="text" value="Portfolio ${String.fromCharCode(64 + portfolioCount)}" class="portfolio-name-input"><button class="remove-portfolio-btn">&times;</button></div><div class="tickers-list"></div><button class="add-ticker-btn add-btn" style="font-size: 14px; padding: 8px 12px;">+ Add Ticker</button>`; portfoliosContainer.appendChild(card); card.querySelector('.add-ticker-btn').addEventListener('click', () => addTicker(card)); card.querySelector('.remove-portfolio-btn').addEventListener('click', () => card.remove()); if (portfolioCount === 1) { addTicker(card, 'VTI', '70'); addTicker(card, 'VXUS', '20'); addTicker(card, 'BND', '10'); } if (portfolioCount === 2) { addTicker(card, 'QQQ', '80'); addTicker(card, 'SCHD', '20'); } }
+    function addTicker(portfolioCard, ticker = '', allocation = '') { const tickersList = portfolioCard.querySelector('.tickers-list'); const row = document.createElement('div'); row.className = 'ticker-input-row'; row.innerHTML = `<div class="ticker-symbol"><input type="text" placeholder="Ticker" class="ticker-input" value="${ticker}"></div><div class="ticker-alloc"><input type="number" placeholder="Alloc." class="allocation-input" value="${allocation}"></div><span>%</span><button class="remove-ticker-btn">&times;</button>`; tickersList.appendChild(row); row.querySelector('.remove-ticker-btn').addEventListener('click', () => row.remove()); }
+    function parsePortfolios() { const portfolios = []; const portfolioCards = document.querySelectorAll('.portfolio-card'); for (const card of portfolioCards) { const tickers = []; let totalAllocation = 0; const tickerRows = card.querySelectorAll('.ticker-input-row'); for (const row of tickerRows) { const ticker = row.querySelector('.ticker-input').value.trim().toUpperCase(); const allocation = parseFloat(row.querySelector('.allocation-input').value); if (ticker && allocation > 0) { tickers.push({ symbol: ticker, allocation }); totalAllocation += allocation; } } if (Math.round(totalAllocation) !== 100) { throw new Error(`Allocations in "${card.querySelector('.portfolio-name-input').value}" must sum to 100%. Current: ${totalAllocation}%.`); } portfolios.push({ id: card.id, name: card.querySelector('.portfolio-name-input').value, tickers }); } return portfolios; }
+    
+    const proxies = ["https://corsproxy.io/?", "https://api.allorigins.win/raw?url="];
+    async function fetchWithFallback(url) { for (const prefix of proxies) { try { const res = await fetch(prefix + encodeURIComponent(url)); if (!res.ok) throw new Error(`Proxy request failed: ${res.status}`); const data = await res.json(); if (data.chart.error) throw new Error(data.chart.error.message); if (!data.chart.result || data.chart.result.length === 0 || !data.chart.result[0].timestamp) { throw new Error('No data returned for ticker.'); } return data; } catch (e) { console.warn(`Proxy for ${url} failed: ${e.message}`); } } throw new Error(`All fetching attempts failed for ${url.split('?')[0].split('/').pop()}`); }
+    async function fetchTickerData(ticker, startDate, endDate) { const startTimestamp = Math.floor(new Date(startDate).getTime() / 1000); const endTimestamp = Math.floor(new Date(endDate).getTime() / 1000); const url = `https://query1.finance.yahoo.com/v8/finance/chart/${ticker}?period1=${startTimestamp}&period2=${endTimestamp}&interval=1d&events=div`; const data = await fetchWithFallback(url); const result = data.chart.result[0]; const prices = {}; result.timestamp.forEach((ts, i) => { const date = new Date(ts * 1000).toISOString().split('T')[0]; if (result.indicators.quote[0].close[i] !== null) { prices[date] = result.indicators.quote[0].close[i]; } }); const dividends = {}; if (result.events && result.events.dividends) { Object.values(result.events.dividends).forEach(div => { const date = new Date(div.date * 1000).toISOString().split('T')[0]; dividends[date] = (dividends[date] || 0) + div.amount; }); } return { prices, dividends }; }
 
-    function method4() {
-      const code = `print("✅ Method 4 ('print' capture) worked!")\nprint("   This text was captured from stdout.")`;
-      try { if(window.exec_and_capture_print) window.exec_and_capture_print(code, "dynamic-4"); }
-      catch (err) { document.getElementById("dynamic-4").innerText = "❌ Method 4 Failed: " + err; }
-    }
-
-    function runCustomCode() {
-      const code = document.getElementById("custom-code-area").value;
-      const outputEl = document.getElementById("custom-code-output");
-      outputEl.textContent = '';
-      try {
-        if (window.exec_and_capture_print) {
-          window.exec_and_capture_print(code, "custom-code-output");
-        } else {
-           outputEl.innerText = "❌ Callback 'exec_and_capture_print' not ready.";
+    // RESTORED: Full calculatePortfolioPerformance function
+    function calculatePortfolioPerformance(portfolio, allData, config, benchmarkData = null) {
+        const { initialInvestment, startDate, endDate, contributionAmount, contributionFrequency, rebalanceFrequency, reinvestDividends, riskFreeRate, dividendTaxRate, gainsTaxRate } = config;
+        const tradingDays = Object.keys(allData[Object.keys(allData)[0]].prices).sort().filter(d => d >= startDate && d <= endDate);
+        if (tradingDays.length === 0) throw new Error("No trading days found in the selected date range.");
+        let totalContributions = initialInvestment; let cumulativeDividends = 0; const holdings = {}; let hprFactors = []; let valueAtStartOfPeriod = initialInvestment;
+        const startingPriceDate = tradingDays[0]; let portfolioValue = initialInvestment;
+        for (const { symbol, allocation } of portfolio.tickers) { if (!allData[symbol] || !allData[symbol].prices[startingPriceDate]) throw new Error(`Could not get starting price for ${symbol}.`); const startingPrice = allData[symbol].prices[startingPriceDate]; const valueStart = portfolioValue * (allocation / 100); holdings[symbol] = { shares: valueStart / startingPrice, data: allData[symbol], valueStart: valueStart, priceStart: startingPrice }; }
+        holdings.CASH = { shares: 0 };
+        let dailyValues = [{ date: tradingDays[0], value: portfolioValue }];
+        let lastContributionMonth = -1, lastContributionQuarter = -1, lastContributionYear = -1;
+        let lastRebalanceQuarter = -1, lastRebalanceYear = -1;
+        let peakValue = portfolioValue, maxDrawdown = 0, bestYear = -Infinity, worstYear = Infinity;
+        for (let i = 1; i < tradingDays.length; i++) {
+            const day = tradingDays[i]; const prevDay = tradingDays[i-1]; const currentDate = new Date(day);
+            portfolioValue = 0;
+            for (const symbol in holdings) {
+                if(symbol === 'CASH') continue;
+                const price = holdings[symbol].data.prices[day] || holdings[symbol].data.prices[prevDay];
+                if (holdings[symbol].data.dividends[day]) { const divAmount = holdings[symbol].shares * holdings[symbol].data.dividends[day]; cumulativeDividends += divAmount; const netDivAmount = divAmount * (1 - dividendTaxRate); if (reinvestDividends) { holdings[symbol].shares += netDivAmount / price; } else { holdings.CASH.shares += netDivAmount; } }
+                portfolioValue += holdings[symbol].shares * price;
+            }
+            portfolioValue += holdings.CASH.shares;
+            let contributedThisDay = false;
+            const currentMonth = currentDate.getUTCMonth(); const currentQuarter = Math.floor(currentMonth / 3); const currentYear = currentDate.getUTCFullYear();
+            if (contributionFrequency === 'monthly' && currentMonth !== lastContributionMonth) { contributedThisDay = true; lastContributionMonth = currentMonth; }
+            if (contributionFrequency === 'quarterly' && currentQuarter !== lastContributionQuarter) { contributedThisDay = true; lastContributionQuarter = currentQuarter; }
+            if (contributionFrequency === 'annually' && currentYear !== lastContributionYear) { contributedThisDay = true; lastContributionYear = currentYear; }
+            if(contributedThisDay && contributionAmount > 0) {
+                hprFactors.push(portfolioValue / valueAtStartOfPeriod);
+                portfolioValue += contributionAmount; totalContributions += contributionAmount; valueAtStartOfPeriod = portfolioValue;
+                for (const { symbol, allocation } of portfolio.tickers) { const price = holdings[symbol].data.prices[day]; holdings[symbol].shares += (contributionAmount * (allocation / 100)) / price; }
+            }
+            let rebalancedThisDay = false;
+            if (rebalanceFrequency === 'quarterly' && currentQuarter !== lastRebalanceQuarter) { rebalancedThisDay = true; lastRebalanceQuarter = currentQuarter; }
+            if (rebalanceFrequency === 'annually' && currentYear !== lastRebalanceYear) { rebalancedThisDay = true; lastRebalanceYear = currentYear; }
+            if(rebalancedThisDay) {
+                let tax = 0;
+                if(gainsTaxRate > 0) {
+                    let realizedGains = 0;
+                    for (const { symbol, allocation } of portfolio.tickers) { const price = holdings[symbol].data.prices[day]; const currentValue = holdings[symbol].shares * price; const targetValue = portfolioValue * (allocation / 100); if (currentValue > targetValue) { realizedGains += (currentValue - targetValue) * 0.2; } }
+                    tax = realizedGains * gainsTaxRate; portfolioValue -= tax;
+                }
+                for (const { symbol, allocation } of portfolio.tickers) { const price = holdings[symbol].data.prices[day]; holdings[symbol].shares = (portfolioValue * (allocation / 100)) / price; }
+            }
+            dailyValues.push({date: day, value: portfolioValue});
+            if (portfolioValue > peakValue) peakValue = portfolioValue;
+            const drawdown = (portfolioValue - peakValue) / peakValue;
+            if (drawdown < maxDrawdown) maxDrawdown = drawdown;
+            if (i >= 252) { const yearReturn = (portfolioValue / dailyValues[i-252].value) - 1; if (yearReturn > bestYear) bestYear = yearReturn; if (yearReturn < worstYear) worstYear = yearReturn; }
         }
-      } catch(err) {
-        outputEl.classList.add("error");
-        outputEl.innerText = "❌ JavaScript-level error: " + err;
-      }
+        const endingValue = dailyValues[dailyValues.length - 1].value;
+        hprFactors.push(endingValue / valueAtStartOfPeriod);
+        const geometricMean = hprFactors.reduce((acc, val) => acc * val, 1);
+        const twrr = Math.pow(geometricMean, 1 / hprFactors.length) -1;
+        const annualizedTWRR = Math.pow(1 + twrr, 252 / (tradingDays.length / hprFactors.length)) - 1;
+        const totalReturn = (endingValue / totalContributions) - 1;
+        const dailyReturns = dailyValues.map((v, i) => i === 0 ? 0 : (v.value / dailyValues[i-1].value) - 1).slice(1);
+        const meanReturn = dailyReturns.reduce((a, b) => a + b, 0) / dailyReturns.length;
+        const stdDev = Math.sqrt(dailyReturns.map(r => Math.pow(r - meanReturn, 2)).reduce((a, b) => a + b, 0) / dailyReturns.length);
+        const annualizedVolatility = stdDev * Math.sqrt(252);
+        const sharpeRatio = (annualizedTWRR - riskFreeRate) / annualizedVolatility;
+        const downsideReturns = dailyReturns.filter(r => r < 0);
+        const downsideStdDev = Math.sqrt(downsideReturns.map(r => Math.pow(r - 0, 2)).reduce((a, b) => a + b, 0) / dailyReturns.length);
+        const sortinoRatio = (annualizedTWRR - riskFreeRate) / (downsideStdDev * Math.sqrt(252));
+        let beta = null, alpha = null, trackingError = null;
+        if (benchmarkData && benchmarkData.dailyReturns.length === dailyReturns.length) {
+            const benchmarkReturns = benchmarkData.dailyReturns;
+            const cov = dailyReturns.reduce((sum, r_p, i) => sum + (r_p - meanReturn) * (benchmarkReturns[i] - benchmarkData.meanReturn), 0) / dailyReturns.length;
+            beta = cov / benchmarkData.variance; alpha = annualizedTWRR - (riskFreeRate + beta * (benchmarkData.twrr - riskFreeRate));
+            const returnDifferences = dailyReturns.map((r, i) => r - benchmarkReturns[i]);
+            const stdDevDiff = Math.sqrt(returnDifferences.map(d => Math.pow(d - (returnDifferences.reduce((a,b)=>a+b,0)/returnDifferences.length),2)).reduce((a,b)=>a+b,0) / returnDifferences.length);
+            trackingError = stdDevDiff * Math.sqrt(252);
+        }
+        const breakdown = portfolio.tickers ? portfolio.tickers.map(({ symbol, allocation }) => {
+            const holding = holdings[symbol]; const priceEnd = holding.data.prices[tradingDays[tradingDays.length - 1]]; const valueEnd = holding.shares * priceEnd;
+            return { symbol, allocation, valueStart: holding.valueStart, valueEnd, drift: (valueEnd / endingValue) * 100 - allocation };
+        }) : null;
+        return { portfolio, initialInvestment, totalContributions, endingValue, endingCash: holdings.CASH.shares, cumulativeDividends, twrr: annualizedTWRR, totalReturn, annualizedVolatility, sharpeRatio, sortinoRatio, maxDrawdown, beta, alpha, trackingError, bestYear, worstYear, dailyValues, breakdown };
     }
-  </script>
+    
+    function generateRandomReturn(mean, stdDev) { let u1=0, u2=0; while(u1===0) u1=Math.random(); while(u2===0) u2=Math.random(); const z0 = Math.sqrt(-2.0*Math.log(u1))*Math.cos(2.0*Math.PI*u2); return z0 * stdDev + mean; }
+    
+    function calculateMonteCarloProjection(portfolioResult, params, simulations) {
+        // Use the cumulative dividends from the backtest to estimate a yield.
+        const dividendYield = portfolioResult.cumulativeDividends / portfolioResult.endingValue / (portfolioResult.dailyValues.length / 252);
+        
+        const yearPaths = Array.from({ length: simulations }, () => ({ path: [], incomes: [] }));
 
-  <noscript>
-    <p class="error">❌ JavaScript is disabled – PyScript cannot run.</p>
-  </noscript>
+        for (let i = 0; i < simulations; i++) {
+            let value = portfolioResult.endingValue;
+            yearPaths[i].path.push(value);
+            let annualContribution = params.initialContribution * 12;
 
+            // --- Accumulation Phase ---
+            for (let y = 0; y < params.accumulationYears; y++) {
+                value += annualContribution;
+                // Use twrr as the CAGR/mean return for projections
+                const randomReturn = generateRandomReturn(portfolioResult.twrr, portfolioResult.annualizedVolatility);
+                value *= (1 + randomReturn);
+                annualContribution *= (1 + params.contributionIncrease);
+                yearPaths[i].path.push(value);
+            }
+            const valueAtRetirement = value;
+            
+            // --- Decumulation (Retirement) Phase ---
+            if (params.goal === 'retire') {
+                for (let y = 0; y < params.decumulationYears; y++) {
+                    const annualDividends = value * dividendYield;
+                    let withdrawalAmount = 0;
+                    let reinvestment = annualDividends; // Assume all dividends are reinvested initially
+
+                    if (params.withdrawalStrategy === 'dividends') {
+                        withdrawalAmount = annualDividends;
+                        reinvestment = 0; // All dividends are taken as income
+                    } else if (params.withdrawalStrategy === 'percentage') {
+                        withdrawalAmount = value * params.withdrawalRate;
+                        reinvestment = Math.max(0, annualDividends - withdrawalAmount);
+                    } else if (params.withdrawalStrategy === 'fixed_amount') {
+                        withdrawalAmount = params.withdrawalAmount;
+                        reinvestment = Math.max(0, annualDividends - withdrawalAmount);
+                    }
+                    
+                    value -= withdrawalAmount; // Take out cash for living expenses.
+                    value += reinvestment;     // Add back any surplus dividends.
+
+                    // Grow the remaining principal
+                    const randomReturn = generateRandomReturn(portfolioResult.twrr, portfolioResult.annualizedVolatility);
+                    value *= (1 + randomReturn);
+                    
+                    yearPaths[i].incomes.push(withdrawalAmount);
+                    yearPaths[i].path.push(value);
+                }
+            }
+        }
+
+        const getPercentilePath = (percentile, key) => {
+            const path = [];
+            const totalYears = params.accumulationYears + (params.goal === 'retire' ? params.decumulationYears : 0);
+            for (let y = 0; y <= totalYears; y++) {
+                const yearValues = yearPaths.map(p => p[key][y]).sort((a,b) => a - b);
+                path.push(yearValues[Math.floor(simulations * percentile)]);
+            }
+            return path;
+        };
+        const getPercentileIncome = (percentile) => {
+            if (params.goal !== 'retire' || params.decumulationYears === 0) return 0;
+            const avgIncomes = yearPaths.map(p => p.incomes.length ? p.incomes.reduce((a,b) => a+b, 0) / p.incomes.length : 0);
+            avgIncomes.sort((a,b) => a-b);
+            return avgIncomes[Math.floor(simulations * percentile)];
+        };
+
+        const medianPath = getPercentilePath(0.5, 'path');
+        return {
+            medianPath, goodPath: getPercentilePath(0.9, 'path'), poorPath: getPercentilePath(0.1, 'path'),
+            valueAtRetirement: medianPath[params.accumulationYears],
+            medianIncome: getPercentileIncome(0.5),
+            finalValue: medianPath[medianPath.length - 1],
+        };
+    }
+
+    // RESTORED: formatNumber function
+    function formatNumber(num, type, decimals = 2) {
+        if (typeof num !== 'number' || isNaN(num)) return 'N/A';
+        if (type === 'currency') return '$' + num.toLocaleString('en-US', { minimumFractionDigits: decimals, maximumFractionDigits: decimals });
+        if (type === 'percent') return (num * 100).toFixed(decimals) + ' %';
+        return num.toFixed(decimals);
+    }
+
+    // RESTORED: renderHistoricalResults function
+    function renderHistoricalResults(results) {
+        const names = results.map(r => r.portfolio.name);
+        const overviewMetrics = [
+            { label: 'Initial Investment', key: 'initialInvestment', type: 'currency' }, { label: 'Total Contributions', key: 'totalContributions', type: 'currency' },
+            { label: 'Ending Value', key: 'endingValue', type: 'currency' }, { label: 'Cumulative Dividends', key: 'cumulativeDividends', type: 'currency' }, 
+            { label: 'Total Return', key: 'totalReturn', type: 'percent' }, { label: 'TWRR (CAGR)', key: 'twrr', type: 'percent' }
+        ];
+        const riskMetrics = [
+            { label: 'Annualized Volatility', key: 'annualizedVolatility', type: 'percent' }, { label: 'Sharpe Ratio', key: 'sharpeRatio', type: 'number' },
+            { label: 'Sortino Ratio', key: 'sortinoRatio', type: 'number' }, { label: 'Max Drawdown', key: 'maxDrawdown', type: 'percent' },
+            { label: 'Best Year', key: 'bestYear', type: 'percent' }, { label: 'Worst Year', key: 'worstYear', type: 'percent' },
+            { label: `Beta (vs. ${primaryBenchmarkTicker})`, key: 'beta', type: 'number' }, { label: `Alpha (vs. ${primaryBenchmarkTicker})`, key: 'alpha', type: 'percent' },
+            { label: `Tracking Error (vs. ${primaryBenchmarkTicker})`, key: 'trackingError', type: 'percent' }
+        ];
+        let overviewHTML = `<h3>Historical Overview</h3><div class="table-container"><table><thead><tr><th>Metric</th>`;
+        names.forEach(name => overviewHTML += `<th>${name}</th>`); overviewHTML += `</tr></thead><tbody>`;
+        overviewMetrics.forEach(m => { overviewHTML += `<tr><td>${m.label}</td>`; results.forEach(r => { overviewHTML += `<td>${formatNumber(r[m.key], m.type)}</td>`; }); overviewHTML += `</tr>`; });
+        overviewHTML += `</tbody></table></div>`;
+        let breakdownHTML = ``;
+        results.filter(r => r.breakdown).forEach(r => {
+            breakdownHTML += `<h3>${r.portfolio.name} Breakdown</h3><div class="table-container"><table><thead><tr><th>Ticker</th><th>Alloc %</th><th>Value Start</th><th>Value End</th><th>Drift %</th></tr></thead><tbody>`;
+            r.breakdown.forEach(b => {
+                breakdownHTML += `<tr><td>${b.symbol}</td><td>${b.allocation.toFixed(1)} %</td><td>${formatNumber(b.valueStart, 'currency')}</td><td>${formatNumber(b.valueEnd, 'currency')}</td><td class="${b.drift >= 0 ? 'positive' : 'negative'}">${b.drift.toFixed(2)} %</td></tr>`;
+            });
+            breakdownHTML += `</tbody></table></div>`;
+        });
+        let riskHTML = `<h3>Risk & Exposure</h3><div class="table-container"><table><thead><tr><th>Metric</th>`;
+        names.forEach(name => riskHTML += `<th>${name}</th>`); riskHTML += `</tr></thead><tbody>`;
+        riskMetrics.forEach(m => {
+            riskHTML += `<tr><td>${m.label}</td>`;
+            results.forEach(r => { riskHTML += `<td class="${r[m.key] < 0 ? 'negative' : ''}">${formatNumber(r[m.key], m.type, 2)}</td>`; });
+            riskHTML += `</tr>`;
+        });
+        riskHTML += `</tbody></table></div>`;
+        resultsArea.innerHTML = `<h2>3. Historical Backtest Results</h2>` + overviewHTML + breakdownHTML + riskHTML;
+    }
+    
+    function renderProjectionChart(historicalData, projectionData, params) {
+        const ctx = document.getElementById('projection-chart').getContext('2d'); if (projectionChartInstance) { projectionChartInstance.destroy(); }
+        const colors = ['#007aff', '#34c759', '#ff9500', '#af52de', '#ff3b30', '#5856d6'];
+        const datasets = [];
+        historicalData.forEach((p, i) => { datasets.push({ label: `${p.name} (Historical)`, data: p.dailyValues.map(d => ({x: new Date(d.date).valueOf(), y: d.value})), borderColor: colors[i % colors.length], borderWidth: 2.5, pointRadius: 0, tension: 0.1 }); });
+        projectionData.forEach((p, i) => {
+            const historicalEnd = historicalData.find(h => h.portfolio.name === p.name).dailyValues.slice(-1)[0];
+            const projectionStartDate = new Date(historicalEnd.date);
+            const getPath = (pathData) => pathData.map((val, j) => ({x: new Date(projectionStartDate.getFullYear()+j, projectionStartDate.getMonth(), projectionStartDate.getDate()).valueOf(), y: val}));
+            datasets.push({ label: `${p.name} (Likely Future)`, data: getPath(p.monteCarlo.medianPath), borderColor: colors[i % colors.length], borderDash: [6, 3], borderWidth: 2, pointRadius: 0, tension: 0.4, fill: false });
+            datasets.push({ label: `${p.name} (Range of Outcomes)`, data: getPath(p.monteCarlo.poorPath).concat(getPath(p.monteCarlo.goodPath).reverse()), borderColor: 'transparent', borderWidth: 0, pointRadius: 0, backgroundColor: colors[i % colors.length] + '1A', fill: 'origin'});
+        });
+        projectionChartInstance = new Chart(ctx, { type: 'line', data: { datasets: datasets }, options: { plugins: { legend: { labels: { filter: item => !item.text.includes('(Range of Outcomes)') } }, tooltip: { mode: 'index', intersect: false, callbacks: { title: function(context) { return new Date(context[0].parsed.x).toLocaleDateString(); }, label: function(context) { const label = context.dataset.label || ''; const value = formatNumber(context.parsed.y, 'currency', 0); return `${label}: ${value}`; } } } }, scales: { x: { type: 'time', time: { unit: 'year' } }, y: { ticks: { callback: function(value) { return formatNumber(value, 'currency', 0); } } } } } });
+    }
+    
+    function renderProjectionResults(projectionResults, params) {
+        const names = projectionResults.map(r => r.name);
+        let mcHTML = '';
+         if (params.goal === 'retire') {
+            mcHTML += `<h3>Your Retirement Projection</h3><div class="table-container"><table><thead><tr><th>Key Milestone</th>`;
+            names.forEach(name => mcHTML += `<th>${name}</th>`); mcHTML += `</tr></thead><tbody>`;
+            mcHTML += `<tr><td>Value at Retirement<span class="outcome-explanation">Likely value after ${params.accumulationYears} years of saving.</span></td>`;
+            projectionResults.forEach(r => mcHTML += `<td>${formatNumber(r.monteCarlo.valueAtRetirement, 'currency', 0)}</td>`); mcHTML += `</tr>`;
+            mcHTML += `<tr><td>Average Annual Income<span class="outcome-explanation">Likely income during your ${params.decumulationYears}-year retirement, in today's money.</span></td>`;
+            projectionResults.forEach(r => mcHTML += `<td>${formatNumber(r.monteCarlo.medianIncome / Math.pow(1 + params.inflationRate, params.accumulationYears), 'currency', 0)} / year</td>`); mcHTML += `</tr>`;
+            mcHTML += `<tr><td>Final Portfolio Value<span class="outcome-explanation">Likely value left at the end of your retirement.</span></td>`;
+            projectionResults.forEach(r => mcHTML += `<td>${formatNumber(r.monteCarlo.finalValue, 'currency', 0)}</td>`); mcHTML += `</tr>`;
+        } else {
+            mcHTML += `<h3>Potential Future Outcomes (${params.accumulationYears}-Year Projection)</h3><div class="table-container"><table><thead><tr><th>Scenario</th>`;
+            names.forEach(name => mcHTML += `<th>${name}</th>`); mcHTML += `</tr></thead><tbody>`;
+            mcHTML += `<tr><td>Optimistic Scenario<span class="outcome-explanation">A great outcome (top 10% chance).</span></td>`;
+            projectionResults.forEach(r => { mcHTML += `<td>${formatNumber(r.monteCarlo.goodPath.slice(-1)[0], 'currency', 0)}</td>`; }); mcHTML += `</tr>`;
+            mcHTML += `<tr><td>Likely Scenario<span class="outcome-explanation">The middle-of-the-road outcome.</span></td>`;
+            projectionResults.forEach(r => { mcHTML += `<td>${formatNumber(r.monteCarlo.medianPath.slice(-1)[0], 'currency', 0)}</td>`; }); mcHTML += `</tr>`;
+            mcHTML += `<tr><td>Pessimistic Scenario<span class="outcome-explanation">An unlucky outcome (bottom 10% chance).</span></td>`;
+            projectionResults.forEach(r => { mcHTML += `<td>${formatNumber(r.monteCarlo.poorPath.slice(-1)[0], 'currency', 0)}</td>`; }); mcHTML += `</tr>`;
+            mcHTML += `<tr style="background-color: #f8f9fa;"><td><strong>Value in Today's Money</strong><span class="outcome-explanation">The likely outcome, adjusted for inflation.</span></td>`;
+            projectionResults.forEach(r => { const realValue = r.monteCarlo.medianPath.slice(-1)[0] / Math.pow(1 + params.inflationRate, params.accumulationYears); mcHTML += `<td><strong>${formatNumber(realValue, 'currency', 0)}</strong></td>`; }); mcHTML += `</tr>`;
+        }
+        mcHTML += `</tbody></table></div>`;
+        projectionsResultsArea.innerHTML = mcHTML;
+    }
+
+    // RESTORED: Full runBacktest function
+    async function runBacktest() {
+        runBtn.disabled = true; loader.style.display = 'block'; errorContainer.textContent = '';
+        resultsArea.classList.add('hidden'); projectionsArea.classList.add('hidden');
+        projectionsResultsArea.classList.add('hidden'); projectionChartContainer.classList.add('hidden');
+        if (projectionChartInstance) { projectionChartInstance.destroy(); projectionChartInstance = null; }
+        try {
+            const config = {
+                initialInvestment: parseFloat(document.getElementById('initial-investment').value), startDate: document.getElementById('start-date').value, endDate: document.getElementById('end-date').value,
+                contributionAmount: parseFloat(document.getElementById('contribution-amount').value), contributionFrequency: document.getElementById('contribution-frequency').value,
+                rebalanceFrequency: document.getElementById('rebalance-frequency').value, reinvestDividends: document.getElementById('reinvest-dividends').value === 'true',
+                riskFreeRate: parseFloat(document.getElementById('risk-free-rate').value) / 100,
+                dividendTaxRate: parseFloat(document.getElementById('dividend-tax-rate').value) / 100, gainsTaxRate: parseFloat(document.getElementById('gains-tax-rate').value) / 100,
+            };
+            primaryBenchmarkTicker = document.getElementById('benchmark1').value.trim().toUpperCase() || 'SPY';
+            const secondaryBenchmarkTicker = document.getElementById('benchmark2').value.trim().toUpperCase();
+            const benchmarks = [...new Set([primaryBenchmarkTicker, secondaryBenchmarkTicker].filter(b => b))];
+            const portfolios = parsePortfolios();
+            if (portfolios.length === 0 && benchmarks.length === 0) { throw new Error("Please configure at least one portfolio or benchmark."); }
+            
+            const uniqueTickers = Array.from(new Set([...benchmarks, ...portfolios.flatMap(p => p.tickers.map(t => t.symbol))]));
+            const settledResults = await Promise.allSettled(uniqueTickers.map(ticker => fetchTickerData(ticker, config.startDate, config.endDate)));
+            
+            const allData = {}; const failedTickers = [];
+            settledResults.forEach((result, i) => { const ticker = uniqueTickers[i]; if (result.status === 'fulfilled') { allData[ticker] = result.value; } else { failedTickers.push(ticker); } });
+            if (failedTickers.length > 0) { throw new Error(`Failed to fetch data for: ${failedTickers.join(', ')}.`); }
+
+            const benchmarkResults = {};
+            if (primaryBenchmarkTicker) {
+                const primaryBenchmarkResult = calculatePortfolioPerformance({ name: primaryBenchmarkTicker, tickers: [{ symbol: primaryBenchmarkTicker, allocation: 100 }]}, allData, config);
+                const dailyReturns = primaryBenchmarkResult.dailyValues.map((v, i) => i === 0 ? 0 : (v.value / primaryBenchmarkResult.dailyValues[i-1].value) - 1).slice(1);
+                const meanReturn = dailyReturns.reduce((a, b) => a + b, 0) / dailyReturns.length;
+                benchmarkResults[primaryBenchmarkTicker] = { ...primaryBenchmarkResult, dailyReturns, meanReturn, variance: dailyReturns.map(r => Math.pow(r - meanReturn, 2)).reduce((a, b) => a + b, 0) / dailyReturns.length };
+            }
+
+            const portfolioResults = portfolios.map(p => calculatePortfolioPerformance(p, allData, config, benchmarkResults[primaryBenchmarkTicker]));
+            
+            if (secondaryBenchmarkTicker && secondaryBenchmarkTicker !== primaryBenchmarkTicker) {
+                benchmarkResults[secondaryBenchmarkTicker] = calculatePortfolioPerformance({ name: secondaryBenchmarkTicker, tickers: [{ symbol: secondaryBenchmarkTicker, allocation: 100 }]}, allData, config, benchmarkResults[primaryBenchmarkTicker]);
+            }
+            
+            historicalResults = [...portfolioResults, ...Object.values(benchmarkResults)];
+            
+            renderHistoricalResults(historicalResults);
+            resultsArea.classList.remove('hidden');
+            projectionsArea.classList.remove('hidden');
+            resultsArea.scrollIntoView({ behavior: 'smooth' });
+        } catch (error) { errorContainer.textContent = `Error: ${error.message}`; } finally { runBtn.disabled = false; loader.style.display = 'none'; }
+    }
+    
+    function runProjections() {
+        debugContainer.innerHTML = '<h4>Projection Debug Log:</h4>'; 
+        logToPage('`runProjections` function called.');
+        try {
+            if (historicalResults.length === 0) { throw new Error('Historical backtest results are not available.'); }
+            let params = { goal: projectionGoalSelect.value, simulations: 5000 };
+            if (params.goal === 'grow') {
+                params.accumulationYears = parseInt(document.getElementById('grow-projection-period').value);
+                params.simulations = parseInt(document.getElementById('grow-sim-quality').value);
+                params.inflationRate = parseFloat(document.getElementById('grow-inflation-rate').value) / 100;
+                params.contributionIncrease = parseFloat(document.getElementById('grow-contribution-increase').value) / 100;
+                params.initialContribution = document.getElementById('contribution-frequency').value === 'none' ? 0 : parseFloat(document.getElementById('contribution-amount').value);
+            } else {
+                params.accumulationYears = parseInt(document.getElementById('years-until-retirement').value);
+                params.decumulationYears = parseInt(document.getElementById('income-phase-duration').value);
+                params.inflationRate = parseFloat(document.getElementById('retire-inflation-rate').value) / 100;
+                params.contributionIncrease = parseFloat(document.getElementById('retire-contribution-increase').value) / 100;
+                params.initialContribution = document.getElementById('contribution-frequency').value === 'none' ? 0 : parseFloat(document.getElementById('contribution-amount').value);
+                params.withdrawalStrategy = withdrawalStrategySelect.value;
+                if (params.withdrawalStrategy === 'fixed_amount') { params.withdrawalAmount = parseFloat(document.getElementById('annual-withdrawal-amount').value); }
+                else if (params.withdrawalStrategy === 'percentage') { params.withdrawalRate = parseFloat(document.getElementById('annual-withdrawal-rate').value) / 100; }
+            }
+            logToPage('Starting calculations with params: ' + JSON.stringify(params));
+            const projectionResults = historicalResults.map(p => ({ name: p.portfolio.name, monteCarlo: calculateMonteCarloProjection(p, params, params.simulations) }));
+            logToPage('Calculations finished.');
+            logToPage('Rendering results and chart...');
+            renderProjectionResults(projectionResults, params);
+            renderProjectionChart(historicalResults, projectionResults, params);
+            projectionsResultsArea.classList.remove('hidden');
+            projectionChartContainer.classList.remove('hidden');
+            projectionsResultsArea.scrollIntoView({ behavior: 'smooth' });
+            logToPage('Projections successfully rendered.');
+        } catch (error) {
+            logToPage(`FATAL ERROR: ${error.message}`, true);
+            console.error(error);
+        }
+    }
+    
+    addPortfolioBtn.addEventListener('click', addPortfolio);
+    runBtn.addEventListener('click', runBacktest);
+    runProjectionsBtn.addEventListener('click', runProjections);
+    addPortfolio();
+});
+</script>
 </body>
 </html>
