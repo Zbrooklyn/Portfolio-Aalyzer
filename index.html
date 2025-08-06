@@ -2,22 +2,24 @@
 <html lang="en">
 <head>
   <meta charset="utf-8" />
-  <title>PyScript Dynamic Execution – Callback-Driven Solution</title>
+  <title>PyScript Dynamic Execution – Full Suite</title>
   <!-- Stable Core build -->
   <link rel="stylesheet" href="https://pyscript.net/releases/2024.1.1/core.css" />
   <script type="module" src="https://pyscript.net/releases/2024.1.1/core.js"></script>
   <style>
     body { font-family: sans-serif; padding: 20px; line-height: 1.6; }
     h2 { margin-top: 2rem; }
+    h3 { margin-top: 1.5rem; }
     .box { padding: 0.5rem; margin: 0.5rem 0; border-left: 4px solid #ccc; background: #f9f9f9; white-space: pre-wrap; }
     button { margin-right: 0.5rem; margin-bottom: 0.5rem; }
+    textarea { width: 100%; box-sizing: border-box; background: #fdfdfd; border: 1px solid #ccc; }
     .success { color: green; }
     .error   { color: red; }
   </style>
 </head>
 <body>
 
-  <h1>🧪 PyScript Dynamic Execution – Callback-Driven Solution</h1>
+  <h1>🧪 PyScript Dynamic Execution – Full Suite</h1>
   <h2>✅ Initialization Tests</h2>
   <div id="display-output" class="box"></div>
 
@@ -43,6 +45,29 @@
 
   <hr>
 
+  <!-- ****************************************************** -->
+  <!-- ** NEW SECTION: Live Code Execution ** -->
+  <!-- ****************************************************** -->
+  <h2>🚀 Live Code Execution Test</h2>
+  <p>Type any Python code below and run it. This uses the same robust callback as Method 4.</p>
+  <textarea id="custom-code-area" rows="6">
+import numpy as np
+
+# This will fail unless numpy is in your py-config
+# a = np.array([1, 2, 3])
+# print(f"My array: {a}")
+# print(f"The sum is: {np.sum(a)}")
+
+print("Hello from the live textarea!")
+for i in range(5):
+    print(f"Number {i}")
+  </textarea>
+  <button onclick="runCustomCode()">Run Custom Code</button>
+  <h3>▶️ Live Code Output</h3>
+  <div id="custom-code-output" class="box"></div>
+  <!-- ****************************************************** -->
+
+
   <!-- Initialization block with all callback functions -->
   <py-script>
 import js
@@ -64,28 +89,35 @@ def exec_direct(code):
     try:
         exec(code)
     except Exception as e:
-        # Re-raise the exception so it can be caught by the JavaScript try/catch block
         raise e
 
-# --- Callback for Method 4: Execute code and capture its print() output ---
+# --- Callback for Method 4 & Live Execution: Execute code and capture its print() output ---
 def exec_and_capture_print(code, target_id):
+    output_el = document.getElementById(target_id)
+    output_el.classList.remove("error") # Reset error state
     old_stdout = sys.stdout
+    old_stderr = sys.stderr
     redirected_output = io.StringIO()
+    redirected_error = io.StringIO()
     sys.stdout = redirected_output
+    sys.stderr = redirected_error
     try:
         exec(code)
-        # Restore the original stdout
-        sys.stdout = old_stdout
-        # Get the captured output
-        output = redirected_output.getvalue()
-        if output:
-            display(output, target=target_id)
+        sys.stdout = old_stdout # Restore
+        sys.stderr = old_stderr # Restore
+        
+        err = redirected_error.getvalue()
+        if err:
+            output_el.classList.add("error")
+            display(err, target=target_id)
         else:
-            display("✅ Executed successfully (no print output).", target=target_id)
+            display(redirected_output.getvalue(), target=target_id)
+
     except Exception as e:
-        # IMPORTANT: always restore stdout, even if there's an error
-        sys.stdout = old_stdout
-        raise e
+        sys.stdout = old_stdout # Restore on error
+        sys.stderr = old_stderr # Restore on error
+        output_el.classList.add("error")
+        display(str(e), target=target_id)
 
 # --- Expose all functions to JavaScript ---
 js.dynamic_run = create_proxy(dynamic_run)
@@ -96,54 +128,53 @@ js.exec_and_capture_print = create_proxy(exec_and_capture_print)
 
   <!-- JavaScript block that uses the new callbacks -->
   <script>
-    // Method 1: The original, simple callback
+    // Method 1
     function method1() {
-      if (window.dynamic_run) {
-        window.dynamic_run("Hello from JS!");
-      } else {
-        document.getElementById("dynamic-1").innerText = "❌ Callback 'dynamic_run' not ready.";
-      }
+      if (window.dynamic_run) window.dynamic_run("Hello from JS!");
     }
 
-    // Method 2: Call the Python `exec_direct` function
+    // Method 2
     function method2() {
-      if (!window.exec_direct) {
-        document.getElementById("dynamic-2").innerText = "❌ Callback 'exec_direct' not ready.";
-        return;
-      }
-      const code = `
-from pyscript import display
-display("✅ Method 2 (Execute Code via Callback) worked!", target="dynamic-2")
-`;
+      const code = `from pyscript import display; display("✅ Method 2 (Execute Code via Callback) worked!", target="dynamic-2")`;
       try {
-        window.exec_direct(code);
+        if(window.exec_direct) window.exec_direct(code);
       } catch (err) {
         document.getElementById("dynamic-2").innerText = "❌ Method 2 Failed: " + err;
       }
     }
 
-    // Method 3: Injection. This pattern is independent and still works.
+    // Method 3
     function method3() {
       const tag = document.createElement("py-script");
       tag.textContent = `from pyscript import display; display("✅ Method 3 (Tag Injection) worked!", target="dynamic-3")`;
       document.body.appendChild(tag);
     }
 
-    // Method 4: Call the Python `exec_and_capture_print` function
+    // Method 4
     function method4() {
-      if (!window.exec_and_capture_print) {
-        document.getElementById("dynamic-4").innerText = "❌ Callback 'exec_and_capture_print' not ready.";
-        return;
-      }
-      const code = `
-print("✅ Method 4 ('print' capture) worked!")
-print("   This text was captured from stdout.")
-print("   Line breaks and spacing are preserved.")
-`;
+      const code = `print("✅ Method 4 ('print' capture) worked!")\nprint("   This text was captured from stdout.")`;
       try {
-        window.exec_and_capture_print(code, "dynamic-4");
+        if(window.exec_and_capture_print) window.exec_and_capture_print(code, "dynamic-4");
       } catch (err) {
         document.getElementById("dynamic-4").innerText = "❌ Method 4 Failed: " + err;
+      }
+    }
+
+    // ** NEW JAVASCRIPT FUNCTION for the Live Editor **
+    function runCustomCode() {
+      const code = document.getElementById("custom-code-area").value;
+      const outputEl = document.getElementById("custom-code-output");
+      outputEl.textContent = ''; // Clear previous output
+      
+      try {
+        if (window.exec_and_capture_print) {
+          window.exec_and_capture_print(code, "custom-code-output");
+        } else {
+           outputEl.innerText = "❌ Callback 'exec_and_capture_print' not ready.";
+        }
+      } catch(err) {
+        outputEl.classList.add("error");
+        outputEl.innerText = "❌ JavaScript-level error: " + err;
       }
     }
   </script>
