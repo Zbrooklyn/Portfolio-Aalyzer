@@ -1,10 +1,11 @@
+
 <!DOCTYPE html>
 <html lang="en">
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' https://cdn.jsdelivr.net 'unsafe-inline'; style-src 'self' 'unsafe-inline'; connect-src 'self' https://corsproxy.io https://api.allorigins.win; img-src 'self' data:;">
-  <title>Portfolio Backtester v7.3.13 (Modern UI)</title>
+  <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' https://cdn.jsdelivr.net 'sha256-q/N0JOCV4oqvX1S1iM6vFkPZ0pB1yBf9N65q0yC1Vcc='; style-src 'self' 'unsafe-inline'; connect-src 'self' https://corsproxy.io https://api.allorigins.win; img-src 'self' data:;">
+  <title>Portfolio Backtester v7.3.15 (Audited)</title>
   <script src="https://cdn.jsdelivr.net/npm/chart.js" defer></script>
   <script src="https://cdn.jsdelivr.net/npm/chartjs-adapter-date-fns/dist/chartjs-adapter-date-fns.bundle.min.js" defer></script>
   <style>
@@ -19,6 +20,16 @@
     body {
       font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
       background-color: var(--background-main); color: var(--text-color); margin: 0; padding: 0 0 40px 0;
+    }
+    *:focus-visible {
+        outline: 2px solid var(--primary-hover);
+        outline-offset: 2px;
+        border-radius: 4px;
+    }
+    .select-wrapper:focus-within {
+        outline: 2px solid var(--primary-hover);
+        outline-offset: 2px;
+        border-radius: 6px; /* Match element's border-radius */
     }
     .app-container { max-width: 1200px; margin: 0 auto; padding: 10px; }
     h1, h2, h3 { color: var(--text-color); }
@@ -43,6 +54,7 @@
         color: #6c757d; font-size: 11px; font-weight: bold;
         cursor: help; user-select: none; flex-shrink: 0;
     }
+    .help-icon:focus-visible { border-radius: 50%; } /* Ensure focus outline is round */
     #master-tooltip {
         visibility: hidden; opacity: 0; transition: opacity 0.2s, visibility 0.2s;
         position: fixed;
@@ -169,110 +181,118 @@
 </head>
 <body>
   <div id="master-tooltip"></div>
-  <div class="app-container">
+  <main class="app-container">
     <h1>Portfolio Backtester</h1>
-    <p class="version">Version 7.3.13 (Modern UI)</p>
+    <p class="version">Version 7.3.15 (Audited)</p>
 
     <!-- Setup Section -->
-    <div id="setup-card" class="section-card">
+    <section id="setup-card" class="section-card">
       <h2>1. Backtest Setup</h2>
       <div class="controls-grid">
-        <div class="control-group"><label for="start-date">Start Date <span class="help-icon" data-tooltip="The first day included in the historical test period. The actual start may be adjusted if an asset was created after this date.">?</span></label><input type="date" id="start-date" value="1950-01-03"></div>
-        <div class="control-group"><label for="end-date">End Date <span class="help-icon" data-tooltip="The last day included in the historical test period.">?</span></label><input type="date" id="end-date"></div>
-        <div class="control-group"><label for="initial-investment">Initial Investment ($) <span class="help-icon" data-tooltip="The starting amount of money in your portfolio on the Start Date.">?</span></label><input type="number" id="initial-investment" value="100000"></div>
-        <div class="control-group"><label for="contribution-amount">Contribution Amount ($) <span class="help-icon" data-tooltip="The amount of new money you add to your portfolio at each interval.">?</span></label><input type="number" id="contribution-amount" value="400"></div>
-        <div class="control-group"><label for="contribution-frequency">Contribution Frequency <span class="help-icon" data-tooltip="How often you add new money to your portfolio.">?</span></label><select id="contribution-frequency"><option value="weekly" selected>Weekly</option><option value="monthly">Monthly</option><option value="quarterly">Quarterly</option><option value="annually">Annually</option><option value="none">None</option></select></div>
-        <div class="control-group"><label for="rebalance-frequency">Rebalance Frequency <span class="help-icon" data-tooltip="How often the portfolio is reset to its original target allocation. This involves selling winners and buying losers.">?</span></label><select id="rebalance-frequency"><option value="annually" selected>Annually</option><option value="quarterly">Quarterly</option><option value="never">Never</option></select></div>
-        <div class="control-group"><label for="reinvest-dividends">Reinvest Dividends? <span class="help-icon" data-tooltip="Choose whether cash from dividends is automatically used to buy more shares or held as cash.">?</span></label><select id="reinvest-dividends"><option value="true" selected>True</option><option value="false">False</option></select></div>
-        <div class="control-group"><label for="risk-free-rate">Risk-Free Rate (%) <span class="help-icon" data-tooltip="Used for Sharpe/Sortino ratios. The US 3-Month T-bill is the academic standard (e.g., ~4-5%). Defaulting to 0% is common for simplicity.">?</span></label><input type="number" id="risk-free-rate" value="0"></div>
-        <div class="control-group"><label for="dividend-tax-rate">Dividend Tax Rate (%) <span class="help-icon" data-tooltip="The tax rate applied to dividends received. Set to 0 for tax-advantaged accounts like an IRA or 401(k).">?</span></label><input type="number" id="dividend-tax-rate" value="0"></div>
-        <div class="control-group"><label for="gains-tax-rate">Capital Gains Tax (%) <span class="help-icon" data-tooltip="The tax rate applied to profits when assets are sold during rebalancing. Set to 0 for tax-advantaged accounts.">?</span></label><input type="number" id="gains-tax-rate" value="0"></div>
-        <div class="control-group"><label for="benchmark1">Benchmark 1 <span class="help-icon" data-tooltip="A market index (like SPY for the S&P 500) to compare your portfolio's performance against.">?</span></label><input type="text" id="benchmark1" value="SPY"></div>
-        <div class="control-group"><label for="benchmark2">Benchmark 2 <span class="help-icon" data-tooltip="A second market index to include for comparison.">?</span></label><input type="text" id="benchmark2" value="QQQ"></div>
+        <div class="control-group"><label for="start-date">Start Date <span class="help-icon" data-tooltip="The first day included in the historical test period. The actual start may be adjusted if an asset was created after this date." role="button" tabindex="0">?</span></label><input type="date" id="start-date" value="1950-01-03"></div>
+        <div class="control-group"><label for="end-date">End Date <span class="help-icon" data-tooltip="The last day included in the historical test period." role="button" tabindex="0">?</span></label><input type="date" id="end-date"></div>
+        <div class="control-group"><label for="initial-investment">Initial Investment ($) <span class="help-icon" data-tooltip="The starting amount of money in your portfolio on the Start Date." role="button" tabindex="0">?</span></label><input type="number" id="initial-investment" value="100000" min="0" inputmode="numeric"></div>
+        <div class="control-group"><label for="contribution-amount">Contribution Amount ($) <span class="help-icon" data-tooltip="The amount of new money you add to your portfolio at each interval." role="button" tabindex="0">?</span></label><input type="number" id="contribution-amount" value="400" min="0" inputmode="numeric"></div>
+        <div class="control-group"><label for="contribution-frequency">Contribution Frequency <span class="help-icon" data-tooltip="How often you add new money to your portfolio." role="button" tabindex="0">?</span></label><select id="contribution-frequency"><option value="weekly" selected>Weekly</option><option value="monthly">Monthly</option><option value="quarterly">Quarterly</option><option value="annually">Annually</option><option value="none">None</option></select></div>
+        <div class="control-group"><label for="rebalance-frequency">Rebalance Frequency <span class="help-icon" data-tooltip="How often the portfolio is reset to its original target allocation. This involves selling winners and buying losers." role="button" tabindex="0">?</span></label><select id="rebalance-frequency"><option value="annually" selected>Annually</option><option value="quarterly">Quarterly</option><option value="never">Never</option></select></div>
+        <div class="control-group"><label for="reinvest-dividends">Reinvest Dividends? <span class="help-icon" data-tooltip="Choose whether cash from dividends is automatically used to buy more shares or held as cash." role="button" tabindex="0">?</span></label><select id="reinvest-dividends"><option value="true" selected>True</option><option value="false">False</option></select></div>
+        <div class="control-group"><label for="risk-free-rate">Risk-Free Rate (%) <span class="help-icon" data-tooltip="Used for Sharpe/Sortino ratios. The US 3-Month T-bill is the academic standard (e.g., ~4-5%). Defaulting to 0% is common for simplicity." role="button" tabindex="0">?</span></label><input type="number" id="risk-free-rate" value="0" min="0" max="100" inputmode="numeric"></div>
+        <div class="control-group"><label for="dividend-tax-rate">Dividend Tax Rate (%) <span class="help-icon" data-tooltip="The tax rate applied to dividends received. Set to 0 for tax-advantaged accounts like an IRA or 401(k)." role="button" tabindex="0">?</span></label><input type="number" id="dividend-tax-rate" value="0" min="0" max="100" inputmode="numeric"></div>
+        <div class="control-group"><label for="gains-tax-rate">Capital Gains Tax (%) <span class="help-icon" data-tooltip="The tax rate applied to profits when assets are sold during rebalancing. Set to 0 for tax-advantaged accounts." role="button" tabindex="0">?</span></label><input type="number" id="gains-tax-rate" value="0" min="0" max="100" inputmode="numeric"></div>
+        <div class="control-group"><label for="benchmark1">Benchmark 1 <span class="help-icon" data-tooltip="A market index (like SPY for the S&P 500) to compare your portfolio's performance against." role="button" tabindex="0">?</span></label><input type="text" id="benchmark1" value="SPY"></div>
+        <div class="control-group"><label for="benchmark2">Benchmark 2 <span class="help-icon" data-tooltip="A second market index to include for comparison." role="button" tabindex="0">?</span></label><input type="text" id="benchmark2" value="QQQ"></div>
       </div>
-    </div>
+    </section>
 
     <!-- Portfolio Configuration Section -->
-    <div class="section-card">
+    <section class="section-card">
       <h2>2. Configure Portfolios</h2>
       <div id="portfolios-container"></div>
       <button id="add-portfolio-btn" class="add-btn" style="margin-top: 15px;">+ Add Portfolio</button>
-    </div>
+    </section>
 
     <div class="run-button-container">
         <button id="run-backtest-btn" class="add-btn">Run Backtest</button>
         <div id="loader" class="loader"></div>
     </div>
-    <div id="error-container"></div>
-    <div id="info-container"></div>
+    <div id="error-container" aria-live="assertive"></div>
+    <div id="info-container" aria-live="polite"></div>
     <div id="backtest-debug-container" class="debug-log hidden"><h4>Backtest Debug Log:</h4></div>
 
     <!-- 8-Step Results Dashboard -->
     <div id="results-area" class="hidden">
-      <div class="section-card" style="padding-bottom: 5px;"><h2>3. Backtest Results</h2></div>
-      <div class="section-card"><h2>Capital Snapshot</h2><div id="snapshot-table-container" class="table-container"></div></div>
-      <div class="section-card"><h2>Asset Allocation</h2><div id="allocation-table-container" class="table-container"></div></div>
-      <div class="section-card"><h2>Income & Yield</h2><div id="income-table-container" class="table-container"></div></div>
-      <div class="section-card"><h2>Costs & Efficiency</h2><div id="costs-table-container" class="table-container"></div></div>
-      <div class="section-card"><h2>Risk & Volatility</h2><div id="risk-table-container" class="table-container"></div></div>
-      <div class="section-card"><h2>Drawdowns</h2><div id="drawdown-table-container" class="table-container"></div></div>
-      <div class="section-card"><h2>Consistency</h2><div id="consistency-table-container" class="table-container"></div></div>
-      <div class="section-card">
+      <section class="section-card" style="padding-bottom: 5px;"><h2>3. Backtest Results</h2></section>
+      <section class="section-card"><h2>Capital Snapshot</h2><div id="snapshot-table-container" class="table-container"></div></section>
+      <section class="section-card"><h2>Asset Allocation</h2><div id="allocation-table-container" class="table-container"></div></section>
+      <section class="section-card"><h2>Income & Yield</h2><div id="income-table-container" class="table-container"></div></section>
+      <section class="section-card"><h2>Costs & Efficiency</h2><div id="costs-table-container" class="table-container"></div></section>
+      <section class="section-card"><h2>Risk & Volatility</h2><div id="risk-table-container" class="table-container"></div></section>
+      <section class="section-card"><h2>Drawdowns</h2><div id="drawdown-table-container" class="table-container"></div></section>
+      <section class="section-card"><h2>Consistency</h2><div id="consistency-table-container" class="table-container"></div></section>
+      <section class="section-card">
         <h2>Holdings Breakdown</h2>
         <div id="holdings-tables-container"></div>
-      </div>
+      </section>
     </div>
 
     <!-- Future Projections Section -->
-    <div id="projections-area" class="section-card hidden">
+    <section id="projections-area" class="section-card hidden">
         <h2>4. Future Projections</h2>
         <div class="control-group" style="margin-bottom: 20px;">
-            <label for="projection-goal">What is your goal? <span class="help-icon" data-tooltip="Choose a goal. Projections use the historical return and volatility from the backtest as the baseline for the simulation.">?</span></label>
+            <label for="projection-goal">What is your goal? <span class="help-icon" data-tooltip="Choose a goal. Projections use the historical return and volatility from the backtest as the baseline for the simulation." role="button" tabindex="0">?</span></label>
             <select id="projection-goal">
                 <option value="grow" selected>Continue saving and grow my portfolio</option>
                 <option value="retire">Plan for a future retirement income</option>
             </select>
         </div>
-        <div class="control-group" style="margin-bottom: 20px;">
-            <label for="sim-quality">Simulation Quality <span class="help-icon" data-tooltip="The number of possible future scenarios we will test. 'Recommended' offers a good balance of speed and accuracy.">?</span></label>
-            <select id="sim-quality">
-                <option value="1000">Fast</option>
-                <option value="5000" selected>Recommended</option>
-                <option value="10000">High Precision</option>
-            </select>
+
+        <div class="controls-grid" style="grid-template-columns: 1fr 1fr; margin-bottom: 20px;">
+            <div class="control-group">
+                <label for="projection-start-value">Projection Starting Value ($) <span class="help-icon" data-tooltip="The starting balance for the future projection. This defaults to the ending balance from your first portfolio's backtest, but you can override it to model a different scenario." role="button" tabindex="0">?</span></label>
+                <input type="number" id="projection-start-value" value="0" min="0" inputmode="numeric">
+            </div>
+            <div class="control-group">
+                <label for="sim-quality">Simulation Quality <span class="help-icon" data-tooltip="The number of possible future scenarios we will test. 'Recommended' offers a good balance of speed and accuracy." role="button" tabindex="0">?</span></label>
+                <select id="sim-quality">
+                    <option value="1000">Fast</option>
+                    <option value="5000" selected>Recommended</option>
+                    <option value="10000">High Precision</option>
+                </select>
+            </div>
         </div>
+        
         <div id="grow-settings">
             <div class="controls-grid">
-                <div class="control-group"><label for="grow-projection-period">Projection Period (Years) <span class="help-icon" data-tooltip="How many years into the future you want to simulate (1–100).">?</span></label><input type="number" id="grow-projection-period" value="10"></div>
-                <div class="control-group"><label for="grow-inflation-rate">Assumed Annual Inflation (%) <span class="help-icon" data-tooltip="Used to show results in ‘today’s dollars.’ Leave 0% for nominal results.">?</span></label><input type="number" id="grow-inflation-rate" value="0"></div>
-                <div class="control-group"><label for="grow-contribution-increase">Annual Contribution Increase (%) <span class="help-icon" data-tooltip="If your savings grow each year, add a percent here; leave 0% to keep deposits flat.">?</span></label><input type="number" id="grow-contribution-increase" value="0"></div>
+                <div class="control-group"><label for="grow-projection-period">Projection Period (Years) <span class="help-icon" data-tooltip="How many years into the future you want to simulate (1–100)." role="button" tabindex="0">?</span></label><input type="number" id="grow-projection-period" value="10" min="1" max="100" inputmode="numeric"></div>
+                <div class="control-group"><label for="grow-inflation-rate">Assumed Annual Inflation (%) <span class="help-icon" data-tooltip="Used to show results in ‘today’s dollars.’ Leave 0% for nominal results." role="button" tabindex="0">?</span></label><input type="number" id="grow-inflation-rate" value="0" min="0" max="100" inputmode="numeric"></div>
+                <div class="control-group"><label for="grow-contribution-increase">Annual Contribution Increase (%) <span class="help-icon" data-tooltip="If your savings grow each year, add a percent here; leave 0% to keep deposits flat." role="button" tabindex="0">?</span></label><input type="number" id="grow-contribution-increase" value="0" min="0" max="100" inputmode="numeric"></div>
             </div>
         </div>
         <div id="retire-settings" class="hidden">
-            <div class="control-group" style="margin-bottom: 20px;"><label for="current-age">What is your current age? <span class="help-icon" data-tooltip="Your current age. This is used as the starting point for retirement projections.">?</span></label><input type="number" id="current-age" value="20"></div>
+            <div class="control-group" style="margin-bottom: 20px;"><label for="current-age">What is your current age? <span class="help-icon" data-tooltip="Your current age. This is used as the starting point for retirement projections." role="button" tabindex="0">?</span></label><input type="number" id="current-age" value="20" min="1" max="120" inputmode="numeric"></div>
             <div class="phase-header">Phase 1: Your Working Years (Saving)</div>
             <div class="controls-grid">
-                 <div class="control-group"><label for="retirement-age">At what age do you want to retire? <span class="help-icon" data-tooltip="The age you plan to stop working and start drawing an income from your portfolio.">?</span></label><input type="number" id="retirement-age" value="65"></div>
-                 <div class="control-group"><label for="retire-contribution-increase">Annual Saving Increase (%) <span class="help-icon" data-tooltip="If your savings grow each year, add a percent here; leave 0% to keep deposits flat.">?</span></label><input type="number" id="retire-contribution-increase" value="0"></div>
+                 <div class="control-group"><label for="retirement-age">At what age do you want to retire? <span class="help-icon" data-tooltip="The age you plan to stop working and start drawing an income from your portfolio." role="button" tabindex="0">?</span></label><input type="number" id="retirement-age" value="65" min="1" max="120" inputmode="numeric"></div>
+                 <div class="control-group"><label for="retire-contribution-increase">Annual Saving Increase (%) <span class="help-icon" data-tooltip="If your savings grow each year, add a percent here; leave 0% to keep deposits flat." role="button" tabindex="0">?</span></label><input type="number" id="retire-contribution-increase" value="0" min="0" max="100" inputmode="numeric"></div>
             </div>
             <div class="phase-header">Phase 2: Your Retirement Years (Income)</div>
             <div class="controls-grid">
                 <div class="control-group">
-                    <label for="withdrawal-strategy">Retirement income plan? <span class="help-icon" data-tooltip="Choose how you want to receive your income in retirement. This determines how money is withdrawn from your portfolio.">?</span></label>
+                    <label for="withdrawal-strategy">Retirement income plan? <span class="help-icon" data-tooltip="Choose how you want to receive your income in retirement. This determines how money is withdrawn from your portfolio." role="button" tabindex="0">?</span></label>
                     <select id="withdrawal-strategy">
                         <option value="dividends">Live Off Dividend Income Only</option>
                         <option value="fixed_amount" selected>Withdraw a Fixed Amount Annually</option>
                         <option value="percentage">Withdraw a Percentage Annually</option>
                     </select>
                 </div>
-                <div class="control-group"><label for="final-age">How long should income last? <span class="help-icon" data-tooltip="The age until which you need your retirement income to last.">?</span></label><input type="number" id="final-age" value="95"></div>
+                <div class="control-group"><label for="final-age">How long should income last? <span class="help-icon" data-tooltip="The age until which you need your retirement income to last." role="button" tabindex="0">?</span></label><input type="number" id="final-age" value="95" min="1" max="120" inputmode="numeric"></div>
             </div>
             <div class="indented-settings">
-                <div class="control-group hidden" id="fixed_amount_setting"><label for="annual-withdrawal-amount">Annual Withdrawal Amount ($) <span class="help-icon" data-tooltip="The amount of money you plan to withdraw each year for living expenses in retirement.">?</span></label><input type="number" id="annual-withdrawal-amount" value="50000"></div>
-                <div class="control-group hidden" id="percentage_setting"><label for="annual-withdrawal-rate">Annual Withdrawal Rate (%) <span class="help-icon" data-tooltip="Typical rule-of-thumb is 4%. Higher % = higher risk of running out of money.">?</span></label><input type="number" id="annual-withdrawal-rate" value="4"></div>
+                <div class="control-group hidden" id="fixed_amount_setting"><label for="annual-withdrawal-amount">Annual Withdrawal Amount ($) <span class="help-icon" data-tooltip="The amount of money you plan to withdraw each year for living expenses in retirement." role="button" tabindex="0">?</span></label><input type="number" id="annual-withdrawal-amount" value="50000" min="0" inputmode="numeric"></div>
+                <div class="control-group hidden" id="percentage_setting"><label for="annual-withdrawal-rate">Annual Withdrawal Rate (%) <span class="help-icon" data-tooltip="Typical rule-of-thumb is 4%. Higher % = higher risk of running out of money." role="button" tabindex="0">?</span></label><input type="number" id="annual-withdrawal-rate" value="4" min="0" max="100" inputmode="numeric"></div>
             </div>
              <div class="control-group" style="margin-top:20px;">
-                <label for="retire-inflation-rate">Assumed Annual Inflation (%) <span class="help-icon" data-tooltip="Used to show results in ‘today’s dollars.’ Leave 0% for nominal results.">?</span></label><input type="number" id="retire-inflation-rate" value="0">
+                <label for="retire-inflation-rate">Assumed Annual Inflation (%) <span class="help-icon" data-tooltip="Used to show results in ‘today’s dollars.’ Leave 0% for nominal results." role="button" tabindex="0">?</span></label><input type="number" id="retire-inflation-rate" value="0" min="0" max="100" inputmode="numeric">
             </div>
         </div>
         <div class="projections-button-wrapper">
@@ -282,12 +302,12 @@
         <div id="projection-debug-container" class="debug-log hidden"><h4>Projection Debug Log:</h4></div>
         <div id="projections-results-area" class="hidden" style="margin-top: 20px;"></div>
         <div id="projection-chart-container" class="hidden"><div style="width: 100%; max-width: 900px; margin: auto; padding-bottom: 20px;"><canvas id="projection-chart"></canvas></div></div>
-    </div>
+    </section>
     <footer>
         <p><strong>Disclaimer:</strong> This tool is for informational and illustrative purposes only. The results are based on historical data and Monte Carlo simulations, which are not guarantees of future performance. Past performance is not indicative of future results. All investments involve risk and may lose value.</p>
         <p>Market data is fetched via public CORS proxies and may be delayed or unavailable at times. Do not base real-world financial decisions solely on this tool.</p>
     </footer>
-  </div>
+  </main>
 
 <script>
 document.addEventListener("DOMContentLoaded", () => {
@@ -330,7 +350,7 @@ document.addEventListener("DOMContentLoaded", () => {
     }
 
     // --- Tooltip Logic ---
-    document.addEventListener('mouseover', (e) => {
+    function showTooltip(e) {
         if (e.target.classList.contains('help-icon')) {
             const tooltipText = e.target.dataset.tooltip; if (!tooltipText) return;
             masterTooltip.textContent = tooltipText;
@@ -343,12 +363,16 @@ document.addEventListener("DOMContentLoaded", () => {
             masterTooltip.style.left = `${left}px`; masterTooltip.style.top = `${top}px`;
             masterTooltip.style.visibility = 'visible'; masterTooltip.style.opacity = '1';
         }
-    });
-    document.addEventListener('mouseout', (e) => {
-        if (e.target.classList.contains('help-icon')) {
+    }
+    function hideTooltip(e) {
+         if (e.target.classList.contains('help-icon')) {
             masterTooltip.style.visibility = 'hidden'; masterTooltip.style.opacity = '0';
         }
-    });
+    }
+    document.addEventListener('mouseover', showTooltip);
+    document.addEventListener('focusin', showTooltip);
+    document.addEventListener('mouseout', hideTooltip);
+    document.addEventListener('focusout', hideTooltip);
     
     // --- Portfolio Builder & Parsing ---
     function addPortfolio(name = '', tickers = []) {
@@ -368,6 +392,7 @@ document.addEventListener("DOMContentLoaded", () => {
         const removeBtn = document.createElement('button');
         removeBtn.className = 'remove-portfolio-btn';
         removeBtn.innerHTML = '&times;';
+        removeBtn.setAttribute('aria-label', `Remove ${name || 'Portfolio ' + portfolioCount}`);
         removeBtn.addEventListener('click', () => card.remove());
 
         header.appendChild(nameInput);
@@ -409,11 +434,14 @@ document.addEventListener("DOMContentLoaded", () => {
         allocInput.placeholder = '%';
         allocInput.className = 'allocation-input';
         allocInput.value = allocation;
+        allocInput.min = "0";
+        allocInput.max = "100";
         allocInput.style.width = '35%';
 
         const removeBtn = document.createElement('button');
         removeBtn.className = 'remove-ticker-btn';
         removeBtn.innerHTML = '&times;';
+        removeBtn.setAttribute('aria-label', 'Remove ticker');
         removeBtn.addEventListener('click', () => row.remove());
 
         row.appendChild(tickerInput);
@@ -424,17 +452,25 @@ document.addEventListener("DOMContentLoaded", () => {
 
     function parsePortfolios() {
         const portfolios = [];
+        const errors = [];
         document.querySelectorAll('.portfolio-card').forEach((card, i) => {
             const tickers = []; let totalAllocation = 0;
-            const portfolioName = card.querySelector('.portfolio-name-input').value;
+            const portfolioName = card.querySelector('.portfolio-name-input').value || `Portfolio ${i + 1}`;
             card.querySelectorAll('.ticker-input-row').forEach(row => {
                 const ticker = row.querySelector('.ticker-input').value.trim().toUpperCase();
                 const allocation = parseFloat(row.querySelector('.allocation-input').value);
                 if (ticker && allocation > 0) { tickers.push({ symbol: ticker, allocation }); totalAllocation += allocation; }
             });
-            if (tickers.length > 0 && Math.abs(totalAllocation - 100) > 0.1) { throw new Error(`Allocations in "${portfolioName}" must sum to 100%. Current: ${totalAllocation.toFixed(1)}%.`); }
-            if (tickers.length > 0) { portfolios.push({ id: `p${i+1}`, name: portfolioName, tickers }); }
+            if (tickers.length > 0 && Math.abs(totalAllocation - 100) > 0.1) { 
+                errors.push(`Allocations in "${portfolioName}" must sum to 100%. Current: ${totalAllocation.toFixed(1)}%.`);
+            }
+            if (tickers.length > 0) { 
+                portfolios.push({ id: `p${i+1}`, name: portfolioName, tickers }); 
+            }
         });
+        if (errors.length > 0) {
+            throw new Error(errors.join('\n'));
+        }
         return portfolios;
     }
     
@@ -568,7 +604,7 @@ document.addEventListener("DOMContentLoaded", () => {
         const holdings = {};
         for (const { symbol, allocation } of portfolio.tickers) {
             const startingPrice = allData[symbol].prices[tradingDays[0]];
-            if (!startingPrice) throw new Error(`Could not get starting price for ${symbol} on date ${tradingDays[0]}.`);
+            if (!startingPrice || startingPrice <= 0) throw new Error(`Could not get a valid starting price for ${symbol} on date ${tradingDays[0]}.`);
             const valueStart = initialInvestment * (allocation / 100);
             holdings[symbol] = { shares: valueStart / startingPrice, preTaxShares: valueStart / startingPrice, data: allData[symbol], valueStart: valueStart };
         }
@@ -596,6 +632,7 @@ document.addEventListener("DOMContentLoaded", () => {
             for (const symbol in holdings) {
                 if(symbol === 'CASH') continue;
                 const price = holdings[symbol].data.prices[day] || holdings[symbol].data.prices[prevDay];
+                if (!price || price <= 0) continue; // Skip if price is invalid
                 if (holdings[symbol].data.dividends[day]) {
                     const grossDivAmount = holdings[symbol].shares * holdings[symbol].data.dividends[day];
                     dailyDividends += grossDivAmount;
@@ -624,6 +661,7 @@ document.addEventListener("DOMContentLoaded", () => {
                     preTaxValueAtStartOfPeriod = preTaxValue;
                     for (const { symbol, allocation } of portfolio.tickers) {
                         const price = holdings[symbol].data.prices[day] || holdings[symbol].data.prices[prevDay];
+                        if (!price || price <= 0) continue;
                         const sharesToAdd = (contributionAmount * (allocation / 100)) / price;
                         holdings[symbol].shares += sharesToAdd;
                         holdings[symbol].preTaxShares += sharesToAdd;
@@ -638,6 +676,7 @@ document.addEventListener("DOMContentLoaded", () => {
             if (rebalanceFrequency !== 'never' && currentDate >= nextRebalanceDate) {
                 for (const { symbol, allocation } of portfolio.tickers) {
                     const price = holdings[symbol].data.prices[day] || holdings[symbol].data.prices[prevDay];
+                    if (!price || price <= 0) continue;
                     holdings[symbol].shares = (postTaxValue * (allocation / 100)) / price;
                     holdings[symbol].preTaxShares = (preTaxValue * (allocation / 100)) / price;
                 }
@@ -675,16 +714,24 @@ document.addEventListener("DOMContentLoaded", () => {
         const meanReturn = dailyReturns.reduce((a, b) => a + b, 0) / dailyReturns.length;
         const stdDev = Math.sqrt(dailyReturns.map(r => Math.pow(r - meanReturn, 2)).reduce((a, b) => a + b, 0) / dailyReturns.length);
         const volatility = stdDev * Math.sqrt(252);
-        const downsideReturns = dailyReturns.filter(r => r < 0);
-        const downsideStdDev = Math.sqrt(downsideReturns.map(r => Math.pow(r - 0, 2)).reduce((a, b) => a + b, 0) / (downsideReturns.length || 1));
+        
+        // Corrected Sortino Ratio calculation
+        const dailyRfr = Math.pow(1 + riskFreeRate, 1/252) - 1;
+        const downsideReturns = dailyReturns.filter(r => r < dailyRfr);
+        const downsideVariance = downsideReturns.map(r => Math.pow(r - dailyRfr, 2)).reduce((a, b) => a + b, 0) / (dailyReturns.length || 1); // Use total N for sample
+        const downsideStdDev = Math.sqrt(downsideVariance);
+        const annualizedDownsideVol = downsideStdDev * Math.sqrt(252);
+        const sortinoRatio = (postTaxAnnualReturn - riskFreeRate) / annualizedDownsideVol;
         
         let beta = null, alpha = null;
         if (benchmarkData && benchmarkData.dailyReturns.length === dailyReturns.length) {
              if (portfolio.name === benchmarkData.portfolio.name) { beta = 1.0; alpha = 0.0; }
              else {
                 const benchmarkReturns = benchmarkData.dailyReturns;
+                // Note: Beta = Cov(Rp, Rm) / Var(Rm). (cov * 252) / (var * 252) simplifies to daily_cov / daily_var.
                 const cov = dailyReturns.reduce((sum, r_p, i) => sum + (r_p - meanReturn) * (benchmarkReturns[i] - benchmarkData.meanReturn), 0) / dailyReturns.length;
-                beta = (cov * 252) / benchmarkData.variance; 
+                const benchmarkDailyVariance = benchmarkData.variance / 252;
+                beta = cov / benchmarkDailyVariance;
                 alpha = postTaxAnnualReturn - (riskFreeRate + beta * (benchmarkData.annualReturn - riskFreeRate));
             }
         }
@@ -730,7 +777,7 @@ document.addEventListener("DOMContentLoaded", () => {
         return {
             portfolio, dailyValues, breakdown, startingBalance: initialInvestment, contributions: totalContributions - initialInvestment, totalInvested: totalContributions, endingBalance: postTaxValue,
             totalReturn: postTaxValue - totalContributions, totalReturnPercent: (postTaxValue - totalContributions) / totalContributions, annualReturn: postTaxAnnualReturn, cumulativeDividends, taxDrag,
-            volatility, downsideVol: downsideStdDev * Math.sqrt(252), sharpeRatio: (postTaxAnnualReturn - riskFreeRate) / volatility, sortinoRatio: (postTaxAnnualReturn - riskFreeRate) / (downsideStdDev * Math.sqrt(252)),
+            volatility, downsideVol: annualizedDownsideVol, sharpeRatio: (postTaxAnnualReturn - riskFreeRate) / volatility, sortinoRatio: sortinoRatio,
             maxDrawdown, bestYear, worstYear, beta, alpha, dropNow: (postTaxValue - peakValue) / peakValue, longestRecovery, winningMonths: winningMonths / (winningMonths + losingMonths || 1),
             winningStreak: maxWinStreak, losingStreak: maxLoseStreak, incomeLast12Mo: last12MoDividends, yieldOnCost: last12MoDividends / totalContributions, dailyReturns, meanReturn, variance: Math.pow(stdDev, 2) * 252,
             stockPercent, bondPercent, cashPercent, incomeGrowth
@@ -747,11 +794,14 @@ document.addEventListener("DOMContentLoaded", () => {
     }
 
     function calculateMonteCarloProjection(portfolioResult, params) {
-        const { simulations, accumulationYears, decumulationYears, initialContribution, contributionIncrease, withdrawalStrategy, withdrawalRate, withdrawalAmount, inflationRate, goal } = params;
+        const { simulations, accumulationYears, decumulationYears, initialContribution, contributionIncrease, withdrawalStrategy, withdrawalRate, withdrawalAmount, inflationRate, goal, startValue } = params;
 
         const hist_cagr = portfolioResult.annualReturn;
         const hist_volatility = portfolioResult.volatility;
+        // Dividend yield is a characteristic of the portfolio based on its backtested performance, so we use the actual endingBalance here.
         const hist_dividend_yield = (portfolioResult.incomeLast12Mo / portfolioResult.endingBalance) || 0;
+        // The drift for geometric brownian motion is mu - sigma^2/2, where mu is the arithmetic mean.
+        // We derive the arithmetic mean from the geometric mean (CAGR) with: mu = cagr + sigma^2/2.
         const total_arithmetic_mean = hist_cagr + (Math.pow(hist_volatility, 2) / 2);
         const drift = total_arithmetic_mean - (Math.pow(hist_volatility, 2) / 2);
 
@@ -759,7 +809,7 @@ document.addEventListener("DOMContentLoaded", () => {
         let failures = 0;
 
         for (let i = 0; i < simulations; i++) {
-            let value = portfolioResult.endingBalance;
+            let value = startValue; // Use the provided start value for the simulation
             const path = [];
             
             let annualContribution = initialContribution;
@@ -819,7 +869,7 @@ document.addEventListener("DOMContentLoaded", () => {
                 maxDd = Math.min(maxDd, drawdown);
             });
             
-            const balanceAtRetirement = path[accumulationYears - 1]?.endBalance || (accumulationYears === 0 ? portfolioResult.endingBalance : (path.length > 0 ? path[path.length - 1].endBalance : 0));
+            const balanceAtRetirement = path[accumulationYears - 1]?.endBalance || (accumulationYears === 0 ? startValue : (path.length > 0 ? path[path.length - 1].endBalance : 0));
             const dividendsAtRetirement = (path[accumulationYears]?.startBalance || 0) * hist_dividend_yield;
             
             return {
@@ -906,6 +956,8 @@ document.addEventListener("DOMContentLoaded", () => {
                 const helpIcon = document.createElement('span');
                 helpIcon.className = 'help-icon';
                 helpIcon.dataset.tooltip = metric.help;
+                helpIcon.setAttribute('role', 'button');
+                helpIcon.setAttribute('tabindex', '0');
                 helpIcon.textContent = '?';
                 tdMetric.appendChild(helpIcon);
 
@@ -946,7 +998,7 @@ document.addEventListener("DOMContentLoaded", () => {
         ]);
         createTable('risk-table-container', [
             { label: 'Volatility', help: 'Typical size of month-to-month ups and downs; bigger means a bumpier ride.', formatter: r => formatNumber(r.volatility, 'percent') },
-            { label: 'Downside Volatility', help: 'Same idea, but it only counts the down months.', formatter: r => formatNumber(r.downsideVol, 'percent') },
+            { label: 'Downside Volatility', help: 'Same idea, but it only counts the down months (relative to the risk-free rate).', formatter: r => formatNumber(r.downsideVol, 'percent') },
             { label: 'Sharpe Ratio', help: 'Extra return earned for each unit of overall volatility (higher is better).', formatter: r => formatNumber(r.sharpeRatio, 'decimal') },
             { label: 'Sortino Ratio', help: 'Extra return earned for each unit of downside volatility.', formatter: r => formatNumber(r.sortinoRatio, 'decimal') },
             { label: `Beta (vs. ${primaryBenchmarkTicker})`, help: `Measures the portfolio's volatility relative to the benchmark (${primaryBenchmarkTicker}). A Beta of 1.1 means it's 10% more volatile than the benchmark.`, formatter: r => r.beta !== null ? formatNumber(r.beta, 'decimal') : (r.portfolio.name === primaryBenchmarkTicker ? '1.00' : 'N/A') },
@@ -1301,16 +1353,27 @@ document.addEventListener("DOMContentLoaded", () => {
         logToPage('Backtest initiated...', false, backtestDebugContainer);
 
         try {
+            // --- P1/P2 VALIDATION ---
+            const initialInvestment = parseFloat(document.getElementById('initial-investment').value);
+            const startDate = document.getElementById('start-date').value;
+            const endDate = document.getElementById('end-date').value;
+            if (startDate && endDate && startDate > endDate) {
+                throw new Error("Start Date cannot be after End Date.");
+            }
+             if (isNaN(initialInvestment) || initialInvestment < 0) {
+                throw new Error("Initial Investment must be a positive number.");
+            }
+
             const startTime = performance.now();
             globalConfig = {
-                initialInvestment: parseFloat(document.getElementById('initial-investment').value), startDate: document.getElementById('start-date').value, endDate: document.getElementById('end-date').value,
+                initialInvestment: initialInvestment, startDate: startDate, endDate: endDate,
                 contributionAmount: parseFloat(document.getElementById('contribution-amount').value), contributionFrequency: document.getElementById('contribution-frequency').value,
                 rebalanceFrequency: document.getElementById('rebalance-frequency').value, reinvestDividends: document.getElementById('reinvest-dividends').value === 'true',
                 riskFreeRate: parseFloat(document.getElementById('risk-free-rate').value) / 100,
                 dividendTaxRate: parseFloat(document.getElementById('dividend-tax-rate').value) / 100, gainsTaxRate: parseFloat(document.getElementById('gains-tax-rate').value) / 100,
             };
             
-            let userPortfolios = parsePortfolios();
+            let userPortfolios = parsePortfolios(); // This function now throws on allocation error
             const userBenchmarks = [...new Set([
                 document.getElementById('benchmark1').value.trim().toUpperCase(),
                 document.getElementById('benchmark2').value.trim().toUpperCase()
@@ -1353,7 +1416,14 @@ document.addEventListener("DOMContentLoaded", () => {
             }
 
             if(infoMessages.length > 0) {
-                infoContainer.innerHTML = `<ul>${infoMessages.map(m => `<li>${m}</li>`).join('')}</ul>`;
+                infoContainer.innerHTML = ''; // Clear previous content
+                const ul = document.createElement('ul');
+                infoMessages.forEach(m => {
+                    const li = document.createElement('li');
+                    li.innerHTML = m; // Using innerHTML here is safe as messages are constructed internally
+                    ul.appendChild(li);
+                });
+                infoContainer.appendChild(ul);
                 infoContainer.style.display = 'block';
             }
             
@@ -1384,6 +1454,12 @@ document.addEventListener("DOMContentLoaded", () => {
             logToPage('Calculations complete. Rendering core results...', false, backtestDebugContainer);
             renderResults(historicalResults);
 
+            const projectionStartValueInput = document.getElementById('projection-start-value');
+            const firstUserPortfolioResult = historicalResults.find(r => portfoliosForCalc.some(p => p.name === r.portfolio.name));
+            if (firstUserPortfolioResult) {
+                projectionStartValueInput.value = Math.round(firstUserPortfolioResult.endingBalance);
+            }
+
             profilePromise.then(allProfiles => {
                 logToPage('Profile data arrived. Updating cost metrics in table...', false, backtestDebugContainer);
                 updateCostMetricsInTable(historicalResults, allProfiles);
@@ -1411,13 +1487,22 @@ document.addEventListener("DOMContentLoaded", () => {
         try {
             if (historicalResults.length === 0) { throw new Error('A valid backtest must be run before projections can be calculated.'); }
             
+            const projectionStartValue = parseFloat(document.getElementById('projection-start-value').value);
+            if (isNaN(projectionStartValue) || projectionStartValue < 0) {
+                throw new Error("Please enter a valid, non-negative Projection Starting Value.");
+            }
+
             let params = { 
                 goal: projectionGoalSelect.value,
-                simulations: parseInt(document.getElementById('sim-quality').value)
+                simulations: parseInt(document.getElementById('sim-quality').value),
+                startValue: projectionStartValue
             };
             
             const portfolioNames = parsePortfolios().map(p => p.name);
             const portfoliosToProject = historicalResults.filter(r => portfolioNames.includes(r.portfolio.name));
+            if (portfoliosToProject.length === 0) {
+                throw new Error("No user portfolios from the backtest are available to project.");
+            }
 
             const freqMap = {'weekly': 52, 'monthly': 12, 'quarterly': 4, 'annually': 1, 'none': 0};
             const annualContribution = globalConfig.contributionAmount * (freqMap[globalConfig.contributionFrequency] || 0);
