@@ -1,4 +1,3 @@
-
 <!DOCTYPE html>
 <html lang="en">
 <head>
@@ -1353,24 +1352,34 @@ document.addEventListener("DOMContentLoaded", () => {
         logToPage('Backtest initiated...', false, backtestDebugContainer);
 
         try {
-            // --- P1/P2 VALIDATION ---
+            // --- P1/P2 Comprehensive VALIDATION ---
             const initialInvestment = parseFloat(document.getElementById('initial-investment').value);
+            const contributionAmount = parseFloat(document.getElementById('contribution-amount').value);
+            const riskFreeRate = parseFloat(document.getElementById('risk-free-rate').value);
+            const dividendTaxRate = parseFloat(document.getElementById('dividend-tax-rate').value);
+            const gainsTaxRate = parseFloat(document.getElementById('gains-tax-rate').value);
             const startDate = document.getElementById('start-date').value;
             const endDate = document.getElementById('end-date').value;
+
+            if ([initialInvestment, contributionAmount, riskFreeRate, dividendTaxRate, gainsTaxRate].some(isNaN)) {
+                throw new Error("Please ensure all numeric fields (e.g., Investment, Contribution, Rates) contain valid numbers.");
+            }
             if (startDate && endDate && startDate > endDate) {
                 throw new Error("Start Date cannot be after End Date.");
             }
-             if (isNaN(initialInvestment) || initialInvestment < 0) {
+            if (initialInvestment < 0) {
                 throw new Error("Initial Investment must be a positive number.");
             }
 
             const startTime = performance.now();
             globalConfig = {
-                initialInvestment: initialInvestment, startDate: startDate, endDate: endDate,
-                contributionAmount: parseFloat(document.getElementById('contribution-amount').value), contributionFrequency: document.getElementById('contribution-frequency').value,
-                rebalanceFrequency: document.getElementById('rebalance-frequency').value, reinvestDividends: document.getElementById('reinvest-dividends').value === 'true',
-                riskFreeRate: parseFloat(document.getElementById('risk-free-rate').value) / 100,
-                dividendTaxRate: parseFloat(document.getElementById('dividend-tax-rate').value) / 100, gainsTaxRate: parseFloat(document.getElementById('gains-tax-rate').value) / 100,
+                initialInvestment, startDate, endDate, contributionAmount,
+                contributionFrequency: document.getElementById('contribution-frequency').value,
+                rebalanceFrequency: document.getElementById('rebalance-frequency').value,
+                reinvestDividends: document.getElementById('reinvest-dividends').value === 'true',
+                riskFreeRate: riskFreeRate / 100,
+                dividendTaxRate: dividendTaxRate / 100,
+                gainsTaxRate: gainsTaxRate / 100,
             };
             
             let userPortfolios = parsePortfolios(); // This function now throws on allocation error
