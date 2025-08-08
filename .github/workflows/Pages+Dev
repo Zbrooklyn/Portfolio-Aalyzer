@@ -1,0 +1,49 @@
+name: Publish Pages (prod + dev)
+
+on:
+  push:
+    branches: [main, developer]
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    env:
+      # If your site is a plain HTML repo, set to '.'
+      # If you build (Vite/React/etc), set to 'dist' and uncomment the build steps
+      BUILD_DIR: .
+
+    steps:
+      - uses: actions/checkout@v4
+
+      # --- Build step (uncomment if you have one) ---
+      # - uses: actions/setup-node@v4
+      #   with:
+      #     node-version: 20
+      # - run: npm ci && npm run build
+      # - run: echo "BUILD_DIR=dist" >> $GITHUB_ENV
+      # ---------------------------------------------
+
+      # MAIN → root of gh-pages
+      - name: Deploy main → /
+        if: github.ref_name == 'main'
+        uses: peaceiris/actions-gh-pages@v3
+        with:
+          github_token: ${{ secrets.GITHUB_TOKEN }}
+          publish_branch: gh-pages
+          publish_dir: ${{ env.BUILD_DIR }}
+          keep_files: true
+
+      # DEVELOPER → /dev subfolder
+      - name: Deploy developer → /dev
+        if: github.ref_name == 'developer'
+        uses: peaceiris/actions-gh-pages@v3
+        with:
+          github_token: ${{ secrets.GITHUB_TOKEN }}
+          publish_branch: gh-pages
+          publish_dir: ${{ env.BUILD_DIR }}
+          destination_dir: dev
+          keep_files: true
