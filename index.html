@@ -231,10 +231,18 @@
                 <option value="retire">Plan for a future retirement income</option>
             </select>
         </div>
+        <!-- ▼▼▼ CORRECTED: Moved Simulation Quality to be a shared control ▼▼▼ -->
+        <div class="control-group" style="margin-bottom: 20px;">
+            <label for="sim-quality">Simulation Quality <span class="help-icon" data-tooltip="The number of possible future scenarios we will test. 'Recommended' offers a good balance of speed and accuracy.">?</span></label>
+            <select id="sim-quality">
+                <option value="1000">Fast</option>
+                <option value="5000" selected>Recommended</option>
+                <option value="10000">High Precision</option>
+            </select>
+        </div>
         <div id="grow-settings">
             <div class="controls-grid">
                 <div class="control-group"><label for="grow-projection-period">Projection Period (Years) <span class="help-icon" data-tooltip="How many years into the future you want to simulate (1–100).">?</span></label><input type="number" id="grow-projection-period" value="10"></div>
-                <div class="control-group"><label for="grow-sim-quality">Simulation Quality <span class="help-icon" data-tooltip="The number of possible future scenarios we will test. 'Recommended' offers a good balance of speed and accuracy.">?</span></label><select id="grow-sim-quality"><option value="1000">Fast</option><option value="5000" selected>Recommended</option><option value="10000">High Precision</option></select></div>
                 <div class="control-group"><label for="grow-inflation-rate">Assumed Annual Inflation (%) <span class="help-icon" data-tooltip="Used to show results in ‘today’s dollars.’ Leave 0% for nominal results.">?</span></label><input type="number" id="grow-inflation-rate" value="0"></div>
                 <div class="control-group"><label for="grow-contribution-increase">Annual Contribution Increase (%) <span class="help-icon" data-tooltip="If your savings grow each year, add a percent here; leave 0% to keep deposits flat.">?</span></label><input type="number" id="grow-contribution-increase" value="0"></div>
             </div>
@@ -1096,6 +1104,10 @@ document.addEventListener("DOMContentLoaded", () => {
             const data = result.monteCarlo[key];
             const content = document.createElement('div');
             
+            // ▼▼▼ CORRECTED: Added checks for empty path data to prevent crashes ▼▼▼
+            const hasPathData = data.path && data.path.length > 0;
+            const finalYearData = hasPathData ? data.path[data.path.length - 1] : { withdrawals: 0, dividends: 0 };
+
             const createSectionTable = (title, metrics) => {
                 const h3 = document.createElement('h3');
                 h3.textContent = title;
@@ -1115,7 +1127,7 @@ document.addEventListener("DOMContentLoaded", () => {
                 { label: 'Balance @ Retirement Start', value: formatNumber(data.balanceAtRetirement, 'currency') },
                 { label: 'Ending Balance (Horizon)', value: formatNumber(data.endingBalance, 'currency') },
                 { label: 'Phase 1 Contributions', value: formatNumber(params.initialContribution * params.accumulationYears, 'currency') },
-                { label: 'Phase 2 Withdrawals', value: formatNumber(data.path.slice(params.accumulationYears).reduce((sum, yr) => sum + yr.withdrawals, 0), 'currency') }
+                { label: 'Phase 2 Withdrawals', value: formatNumber(hasPathData ? data.path.slice(params.accumulationYears).reduce((sum, yr) => sum + yr.withdrawals, 0) : 0, 'currency') }
             ]);
             
             if (params.goal === 'retire') {
@@ -1124,7 +1136,7 @@ document.addEventListener("DOMContentLoaded", () => {
                     { label: 'Dividend Yield @ Retirement', value: formatNumber(data.dividendYieldAtRetirement, 'percent') },
                     { label: 'Dividends @ Start (yr 1 retired)', value: `${formatNumber(data.dividendsAtRetirement, 'currency')}/yr` },
                     ...(withdrawalAmount > 0 ? [{ label: `% of ${formatNumber(withdrawalAmount, 'currency')} Covered (Start)`, value: formatNumber(data.dividendsAtRetirement / withdrawalAmount, 'percent', 0) }] : []),
-                    { label: 'Dividends @ Horizon', value: `${formatNumber(data.path[data.path.length-1].dividends, 'currency')}/yr` }
+                    { label: 'Dividends @ Horizon', value: `${formatNumber(finalYearData.dividends, 'currency')}/yr` }
                 ]);
             }
 
@@ -1146,24 +1158,26 @@ document.addEventListener("DOMContentLoaded", () => {
                 yHeadRow.appendChild(th);
             });
             
-            data.path.forEach((yearData, index) => {
-                const row = yTbody.insertRow();
-                row.insertCell().textContent = yearData.year;
-                row.insertCell().textContent = formatNumber(yearData.startBalance, 'currency');
-                row.insertCell().textContent = formatNumber(yearData.contributions, 'currency');
-                row.insertCell().textContent = formatNumber(yearData.dividends, 'currency');
-                if (params.goal === 'retire') {
-                    row.insertCell().textContent = formatNumber(yearData.withdrawals, 'currency');
-                    row.insertCell().textContent = formatNumber(yearData.salesNeeded, 'currency');
-                }
-                row.insertCell().textContent = formatNumber(yearData.endBalance, 'currency');
-                if(index > 4) row.classList.add('hidden', 'extra-year-row');
-            });
+            if (hasPathData) {
+                data.path.forEach((yearData, index) => {
+                    const row = yTbody.insertRow();
+                    row.insertCell().textContent = yearData.year;
+                    row.insertCell().textContent = formatNumber(yearData.startBalance, 'currency');
+                    row.insertCell().textContent = formatNumber(yearData.contributions, 'currency');
+                    row.insertCell().textContent = formatNumber(yearData.dividends, 'currency');
+                    if (params.goal === 'retire') {
+                        row.insertCell().textContent = formatNumber(yearData.withdrawals, 'currency');
+                        row.insertCell().textContent = formatNumber(yearData.salesNeeded, 'currency');
+                    }
+                    row.insertCell().textContent = formatNumber(yearData.endBalance, 'currency');
+                    if(index > 4) row.classList.add('hidden', 'extra-year-row');
+                });
+            }
             
             yearTableContainer.appendChild(yearTable);
             content.appendChild(yearTableContainer);
 
-            if(data.path.length > 5) {
+            if(hasPathData && data.path.length > 5) {
                 const buttonWrapper = document.createElement('div');
                 buttonWrapper.style.textAlign = 'center';
                 const showMoreBtn = document.createElement('button');
@@ -1350,7 +1364,12 @@ document.addEventListener("DOMContentLoaded", () => {
         
         try {
             if (historicalResults.length === 0) { throw new Error('Historical backtest results are not available.'); }
-            let params = { goal: projectionGoalSelect.value };
+            
+            // ▼▼▼ CORRECTED: Gather shared parameters first ▼▼▼
+            let params = { 
+                goal: projectionGoalSelect.value,
+                simulations: parseInt(document.getElementById('sim-quality').value)
+            };
             
             const portfolioNames = parsePortfolios().map(p => p.name);
             const portfoliosToProject = historicalResults.filter(r => portfolioNames.includes(r.portfolio.name));
@@ -1360,7 +1379,6 @@ document.addEventListener("DOMContentLoaded", () => {
 
             if (params.goal === 'grow') {
                 params.accumulationYears = parseInt(document.getElementById('grow-projection-period').value);
-                params.simulations = parseInt(document.getElementById('grow-sim-quality').value);
                 params.inflationRate = parseFloat(document.getElementById('grow-inflation-rate').value) / 100;
                 params.contributionIncrease = parseFloat(document.getElementById('grow-contribution-increase').value) / 100;
                 params.initialContribution = annualContribution;
