@@ -13,6 +13,7 @@
       --background-main: #f0f2f5; --background-card: #ffffff; --text-color: #212529;
       --text-light: #6c757d; --error-color: #d93025; --green: #34c759; --red: #ff3b30;
       --info-bg: #e7f3ff; --info-border: #90b8de; --info-text: #004085;
+      --warn-bg: #fff3cd; --warn-border: #ffeeba; --warn-text: #856404;
     }
     html { scroll-behavior: smooth; }
     body {
@@ -68,9 +69,10 @@
     #error-container { color: var(--error-color); text-align: center; font-weight: bold; margin: 15px auto; max-width: 600px; }
     #info-container {
         display: none; padding: 12px 18px; margin: -10px auto 20px auto; max-width: 1160px;
-        background-color: var(--info-bg); border: 1px solid var(--info-border); border-radius: 8px;
-        color: var(--info-text); text-align: center; font-size: 14px; font-weight: 500;
+        border-radius: 8px; text-align: left; font-size: 14px; font-weight: 500;
+        background-color: var(--warn-bg); border: 1px solid var(--warn-border); color: var(--warn-text);
     }
+    #info-container ul { margin: 0; padding-left: 20px; }
     
     .table-container { overflow-x: auto; -webkit-overflow-scrolling: touch; }
     table { border-collapse: collapse; width: 100%; margin-bottom: 10px; margin-top: 15px; }
@@ -231,7 +233,6 @@
                 <option value="retire">Plan for a future retirement income</option>
             </select>
         </div>
-        <!-- ▼▼▼ CORRECTED: Moved Simulation Quality to be a shared control ▼▼▼ -->
         <div class="control-group" style="margin-bottom: 20px;">
             <label for="sim-quality">Simulation Quality <span class="help-icon" data-tooltip="The number of possible future scenarios we will test. 'Recommended' offers a good balance of speed and accuracy.">?</span></label>
             <select id="sim-quality">
@@ -349,7 +350,7 @@ document.addEventListener("DOMContentLoaded", () => {
         }
     });
     
-    // --- Portfolio Builder & Parsing (XSS Hardened) ---
+    // --- Portfolio Builder & Parsing ---
     function addPortfolio(name = '', tickers = []) {
         portfolioCount++;
         const card = document.createElement('div');
@@ -437,7 +438,7 @@ document.addEventListener("DOMContentLoaded", () => {
         return portfolios;
     }
     
-    // --- Data Fetching with Batch Retry Logic ---
+    // --- Data Fetching & Validation ---
     const proxies = {
         price: ["https://corsproxy.io/?", "https://api.allorigins.win/raw?url="],
         profile: ["https://api.allorigins.win/raw?url=", "https://corsproxy.io/?"]
@@ -455,7 +456,6 @@ document.addEventListener("DOMContentLoaded", () => {
             
             for (let attempt = 1; attempt <= MAX_ATTEMPTS_PER_PROXY; attempt++) {
                 if (requestsToProcess.length === 0) break;
-
                 logToPage(`[SYSTEM] ${requestType} data: Attempt ${attempt}/${MAX_ATTEMPTS_PER_PROXY} for ${requestsToProcess.length} requests via proxy: ${proxyName}...`, false, logContainer);
 
                 const promises = requestsToProcess.map(req => req.fetchFn(proxyUrl, ...req.args)
@@ -530,11 +530,28 @@ document.addEventListener("DOMContentLoaded", () => {
         const data = await res.json();
         
         const profile = data?.quoteSummary?.result?.[0]?.fundProfile;
-        if (!profile) return { expenseRatio: 0, turnover: 0 };
+        if (!profile) return { expenseRatio: null, turnover: null }; // Use null for missing data
 
-        const expenseRatio = profile.annualReportExpenseRatio?.raw || 0;
-        const turnover = profile.annualHoldingsTurnover?.raw || 0;
+        const expenseRatio = profile.annualReportExpenseRatio?.raw ?? null;
+        const turnover = profile.annualHoldingsTurnover?.raw ?? null;
         return { expenseRatio, turnover };
+    }
+
+    function validateAndFlagTickerData(allData) {
+        const flaggedTickers = new Set();
+        for (const ticker in allData) {
+            const prices = allData[ticker].prices;
+            const sortedDates = Object.keys(prices).sort();
+            for (let i = 1; i < sortedDates.length; i++) {
+                const prevPrice = prices[sortedDates[i-1]];
+                const currentPrice = prices[sortedDates[i]];
+                if(prevPrice > 0 && (currentPrice / prevPrice - 1) < -0.5) { // More than 50% drop
+                    flaggedTickers.add(ticker);
+                    break;
+                }
+            }
+        }
+        return Array.from(flaggedTickers);
     }
 
     // --- Core Backtest Calculation Engine ---
@@ -546,7 +563,7 @@ document.addEventListener("DOMContentLoaded", () => {
     function calculatePortfolioPerformance(portfolio, allData, config, benchmarkData = null) {
         const { initialInvestment, startDate, endDate, contributionAmount, contributionFrequency, rebalanceFrequency, reinvestDividends, riskFreeRate, dividendTaxRate } = config;
         const tradingDays = Object.keys(allData[Object.keys(allData)[0]].prices).sort().filter(d => d >= startDate && d <= endDate);
-        if (tradingDays.length === 0) throw new Error("No trading days found in the selected date range.");
+        if (tradingDays.length === 0) return null; // Return null if no data
         
         const holdings = {};
         for (const { symbol, allocation } of portfolio.tickers) {
@@ -731,8 +748,13 @@ document.addEventListener("DOMContentLoaded", () => {
 
     function calculateMonteCarloProjection(portfolioResult, params) {
         const { simulations, accumulationYears, decumulationYears, initialContribution, contributionIncrease, withdrawalStrategy, withdrawalRate, withdrawalAmount, inflationRate, goal } = params;
-        const yearsInTest = (new Date(globalConfig.endDate) - new Date(globalConfig.startDate)) / (1000 * 60 * 60 * 24 * 365.25);
-        const dividendYield = portfolioResult.cumulativeDividends / portfolioResult.endingBalance / yearsInTest;
+
+        const hist_cagr = portfolioResult.annualReturn;
+        const hist_volatility = portfolioResult.volatility;
+        const hist_dividend_yield = (portfolioResult.incomeLast12Mo / portfolioResult.endingBalance) || 0;
+        const total_arithmetic_mean = hist_cagr + (Math.pow(hist_volatility, 2) / 2);
+        const drift = total_arithmetic_mean - (Math.pow(hist_volatility, 2) / 2);
+
         const yearPaths = [];
         let failures = 0;
 
@@ -742,35 +764,39 @@ document.addEventListener("DOMContentLoaded", () => {
             
             let annualContribution = initialContribution;
             for (let y = 0; y < accumulationYears; y++) {
-                const yearData = { year: y + 1, startBalance: value, contributions: annualContribution, dividends: value * dividendYield, withdrawals: 0 };
+                const startOfYearValue = value;
                 value += annualContribution;
-                value *= (1 + generateRandomReturn(portfolioResult.annualReturn, portfolioResult.volatility));
-                yearData.endBalance = value;
-                path.push(yearData);
+                value *= Math.exp(generateRandomReturn(drift, hist_volatility));
+                if (!isFinite(value) || value < 0) { value = 0; break; }
+                
+                path.push({ year: y + 1, startBalance: startOfYearValue, contributions: annualContribution, dividends: startOfYearValue * hist_dividend_yield, withdrawals: 0, salesNeeded: 0, endBalance: value });
                 annualContribution *= (1 + contributionIncrease);
             }
 
             if (goal === 'retire') {
                 for (let y = 0; y < decumulationYears; y++) {
-                    const currentDividends = value * dividendYield;
-                    let currentWithdrawal = 0;
-                    if (withdrawalStrategy === 'dividends') { currentWithdrawal = currentDividends; }
-                    else if (withdrawalStrategy === 'percentage') { currentWithdrawal = value * withdrawalRate; }
-                    else if (withdrawalStrategy === 'fixed_amount') { currentWithdrawal = withdrawalAmount; }
+                    if (value <= 0) {
+                         path.push({ year: accumulationYears + y + 1, startBalance: 0, contributions: 0, dividends: 0, withdrawals: 0, salesNeeded: 0, endBalance: 0 });
+                         continue;
+                    }
                     
-                    const yearData = { year: accumulationYears + y + 1, startBalance: value, contributions: 0, dividends: currentDividends, withdrawals: currentWithdrawal, salesNeeded: Math.max(0, currentWithdrawal - currentDividends) };
+                    const startOfYearValue = value;
+                    const dividendsGenerated = startOfYearValue * hist_dividend_yield;
+                    let currentWithdrawal = 0;
+                    
+                    if (withdrawalStrategy === 'dividends') { currentWithdrawal = dividendsGenerated; } 
+                    else if (withdrawalStrategy === 'percentage') { currentWithdrawal = startOfYearValue * withdrawalRate; } 
+                    else if (withdrawalStrategy === 'fixed_amount') { currentWithdrawal = withdrawalAmount; }
+
                     value -= currentWithdrawal;
-                    value += currentDividends;
-                    value *= (1 + generateRandomReturn(portfolioResult.annualReturn, portfolioResult.volatility));
-                    yearData.endBalance = value > 0 ? value : 0;
-                    path.push(yearData);
-                    if (value <= 0) break;
+                    if (value > 0) { value *= Math.exp(generateRandomReturn(drift, hist_volatility)); }
+                    if (!isFinite(value) || value < 0) { value = 0; }
+                    
+                    path.push({ year: accumulationYears + y + 1, startBalance: startOfYearValue, contributions: 0, dividends: dividendsGenerated, withdrawals: currentWithdrawal, salesNeeded: Math.max(0, currentWithdrawal - dividendsGenerated), endBalance: value });
                 }
             }
             
-            if (goal === 'retire' && path.length > 0 && path[path.length - 1].endBalance <= 0) {
-                failures++;
-            }
+            if (goal === 'retire' && path.length > 0 && path[path.length - 1].endBalance <= 0) { failures++; }
             yearPaths.push(path);
         }
         
@@ -783,40 +809,39 @@ document.addEventListener("DOMContentLoaded", () => {
             return sortedPaths[Math.floor(simulations * percentile)] || [];
         };
         
-        const medianPath = getPercentilePath(0.5);
-        const goodPath = getPercentilePath(0.9);
-        const poorPath = getPercentilePath(0.1);
-
         const calculatePathMetrics = (path) => {
             if (!path || path.length === 0) return { path: [], maxDrawdown: 0, endingBalance: 0, balanceAtRetirement: 0, dividendsAtRetirement: 0, dividendYieldAtRetirement: 0 };
             let peak = path.length > 0 ? path[0].startBalance : 0;
             let maxDd = 0;
             path.forEach(year => {
                 peak = Math.max(peak, year.endBalance);
-                maxDd = Math.min(maxDd, (year.endBalance - peak) / peak);
+                const drawdown = peak > 0 ? (year.endBalance - peak) / peak : 0;
+                maxDd = Math.min(maxDd, drawdown);
             });
+            
+            const balanceAtRetirement = path[accumulationYears - 1]?.endBalance || (accumulationYears === 0 ? portfolioResult.endingBalance : (path.length > 0 ? path[path.length - 1].endBalance : 0));
+            const dividendsAtRetirement = (path[accumulationYears]?.startBalance || 0) * hist_dividend_yield;
+            
             return {
-                path,
-                maxDrawdown: maxDd,
-                endingBalance: path[path.length - 1].endBalance,
-                balanceAtRetirement: path[accumulationYears - 1]?.endBalance || path[path.length - 1].endBalance,
-                dividendsAtRetirement: path[accumulationYears]?.dividends || 0,
-                dividendYieldAtRetirement: path[accumulationYears] ? path[accumulationYears].dividends / path[accumulationYears].startBalance : 0,
+                path, maxDrawdown: maxDd, endingBalance: path[path.length - 1].endBalance,
+                balanceAtRetirement: balanceAtRetirement,
+                dividendsAtRetirement: dividendsAtRetirement,
+                dividendYieldAtRetirement: hist_dividend_yield
             };
         };
 
         return {
-            good: calculatePathMetrics(goodPath),
-            median: calculatePathMetrics(medianPath),
-            poor: calculatePathMetrics(poorPath),
+            good: calculatePathMetrics(getPercentilePath(0.9)),
+            median: calculatePathMetrics(getPercentilePath(0.5)),
+            poor: calculatePathMetrics(getPercentilePath(0.1)),
             successRate: 1 - (failures / simulations)
         };
     }
 
 
-    // --- UI Rendering (XSS Hardened) ---
+    // --- UI Rendering ---
     function formatNumber(num, type, decimals = 1) {
-        if (typeof num !== 'number' || isNaN(num) || !isFinite(num)) return 'N/A';
+        if (num === null || typeof num === 'undefined' || isNaN(num) || !isFinite(num)) return 'N/A';
         if (type === 'currency') return '$' + num.toLocaleString('en-US', { minimumFractionDigits: 0, maximumFractionDigits: 0 });
         if (type === 'percent') return (num * 100).toFixed(decimals) + ' %';
         if (type === 'decimal') return num.toFixed(2);
@@ -829,14 +854,25 @@ document.addEventListener("DOMContentLoaded", () => {
         results.forEach(r => {
             if (!r.breakdown) return;
             const totalValue = r.endingBalance;
-            const expenseRatio = r.breakdown.reduce((acc, h) => acc + (h.valueEnd / totalValue) * (allProfiles[`${h.symbol}_profile`]?.expenseRatio || 0), 0);
-            const turnover = r.breakdown.reduce((acc, h) => acc + (h.valueEnd / totalValue) * (allProfiles[`${h.symbol}_profile`]?.turnover || 0), 0);
+            let totalExpense = 0;
+            let totalTurnover = 0;
+            let costsAreKnown = true;
+
+            for(const h of r.breakdown) {
+                const profile = allProfiles[`${h.symbol}_profile`];
+                if (profile?.expenseRatio === null || profile?.turnover === null) {
+                    costsAreKnown = false;
+                    break;
+                }
+                totalExpense += (h.valueEnd / totalValue) * (profile?.expenseRatio || 0);
+                totalTurnover += (h.valueEnd / totalValue) * (profile?.turnover || 0);
+            }
             
             const erCell = document.getElementById(`er-${r.portfolio.id}`);
             const toCell = document.getElementById(`to-${r.portfolio.id}`);
 
-            if (erCell) erCell.textContent = formatNumber(expenseRatio, 'percent', 2);
-            if (toCell) toCell.textContent = formatNumber(turnover, 'percent', 0);
+            if (erCell) erCell.textContent = costsAreKnown ? formatNumber(totalExpense, 'percent', 2) : 'N/A';
+            if (toCell) toCell.textContent = costsAreKnown ? formatNumber(totalTurnover, 'percent', 0) : 'N/A';
         });
     }
 
@@ -1104,7 +1140,6 @@ document.addEventListener("DOMContentLoaded", () => {
             const data = result.monteCarlo[key];
             const content = document.createElement('div');
             
-            // ▼▼▼ CORRECTED: Added checks for empty path data to prevent crashes ▼▼▼
             const hasPathData = data.path && data.path.length > 0;
             const finalYearData = hasPathData ? data.path[data.path.length - 1] : { withdrawals: 0, dividends: 0 };
 
@@ -1148,7 +1183,8 @@ document.addEventListener("DOMContentLoaded", () => {
             const yTbody = yearTable.createTBody();
             const yHeadRow = yThead.insertRow();
             
-            const headers = params.goal === 'retire'
+            const isRetireGoal = params.goal === 'retire';
+            const headers = isRetireGoal
                 ? ['Year', 'Start', 'Contrib', 'Dividends', 'Withdrawals', 'Sales Needed', 'End']
                 : ['Year', 'Start', 'Contrib', 'Dividends', 'End'];
             
@@ -1165,7 +1201,7 @@ document.addEventListener("DOMContentLoaded", () => {
                     row.insertCell().textContent = formatNumber(yearData.startBalance, 'currency');
                     row.insertCell().textContent = formatNumber(yearData.contributions, 'currency');
                     row.insertCell().textContent = formatNumber(yearData.dividends, 'currency');
-                    if (params.goal === 'retire') {
+                    if (isRetireGoal) {
                         row.insertCell().textContent = formatNumber(yearData.withdrawals, 'currency');
                         row.insertCell().textContent = formatNumber(yearData.salesNeeded, 'currency');
                     }
@@ -1274,64 +1310,77 @@ document.addEventListener("DOMContentLoaded", () => {
                 dividendTaxRate: parseFloat(document.getElementById('dividend-tax-rate').value) / 100, gainsTaxRate: parseFloat(document.getElementById('gains-tax-rate').value) / 100,
             };
             
-            primaryBenchmarkTicker = document.getElementById('benchmark1').value.trim().toUpperCase() || 'SPY';
-            const secondaryBenchmarkTicker = document.getElementById('benchmark2').value.trim().toUpperCase();
-            const benchmarks = [...new Set([primaryBenchmarkTicker, secondaryBenchmarkTicker].filter(b => b))];
-            const portfolios = parsePortfolios();
-            if (portfolios.length === 0 && benchmarks.length === 0) { throw new Error("Please configure at least one portfolio or benchmark."); }
+            let userPortfolios = parsePortfolios();
+            const userBenchmarks = [...new Set([
+                document.getElementById('benchmark1').value.trim().toUpperCase(),
+                document.getElementById('benchmark2').value.trim().toUpperCase()
+            ].filter(b => b))];
+
+            if (userPortfolios.length === 0 && userBenchmarks.length === 0) { throw new Error("Please configure at least one portfolio or benchmark."); }
             
-            const uniqueTickers = Array.from(new Set([...benchmarks, ...portfolios.flatMap(p => p.tickers.map(t => t.symbol))]));
-            logToPage(`Identified ${uniqueTickers.length} unique tickers to fetch: ${uniqueTickers.join(', ')}.`, false, backtestDebugContainer);
+            const allUniqueTickers = Array.from(new Set([...userBenchmarks, ...userPortfolios.flatMap(p => p.tickers.map(t => t.symbol))]));
+            logToPage(`Identified ${allUniqueTickers.length} unique tickers to fetch: ${allUniqueTickers.join(', ')}.`, false, backtestDebugContainer);
             
-            const priceRequests = uniqueTickers.map(t => ({ key: t, fetchFn: fetchTickerData, args: [t, globalConfig.startDate, globalConfig.endDate] }));
-            const profileRequests = uniqueTickers.map(t => ({ key: `${t}_profile`, fetchFn: fetchTickerProfile, args: [t] }));
+            const priceRequests = allUniqueTickers.map(t => ({ key: t, fetchFn: fetchTickerData, args: [t, globalConfig.startDate, globalConfig.endDate] }));
+            const profileRequests = allUniqueTickers.map(t => ({ key: `${t}_profile`, fetchFn: fetchTickerProfile, args: [t] }));
             
             const pricePromise = fetchAllWithRetries(priceRequests, proxies.price, "Price", backtestDebugContainer);
-            
-            const profilePromise = fetchAllWithRetries(profileRequests, proxies.profile, "Profile", backtestDebugContainer).then(profileResults => {
-                const allProfiles = {};
-                const failedProfileTickers = profileResults.failures ? profileResults.failures.map(k => k.replace('_profile','')) : [];
-                uniqueTickers.forEach(t => { if (profileResults[`${t}_profile`]) allProfiles[`${t}_profile`] = profileResults[`${t}_profile`]; });
-                if (failedProfileTickers.length > 0) logToPage(`[WARN] Could not retrieve profile data for: ${failedProfileTickers.join(', ')}.`, true, backtestDebugContainer);
-                return allProfiles;
-            });
+            const profilePromise = fetchAllWithRetries(profileRequests, proxies.profile, "Profile", backtestDebugContainer);
 
             const priceResults = await pricePromise;
-            const fetchDuration = ((performance.now() - startTime) / 1000).toFixed(1);
-            logToPage(`Critical price data fetched in ${fetchDuration} seconds.`, false, backtestDebugContainer);
+            let infoMessages = [];
 
             const allData = {}; 
             const failedPriceTickers = priceResults.failures || [];
-            if (failedPriceTickers.length > 0) throw new Error(`Failed to fetch critical price data for: ${failedPriceTickers.join(', ')}.`);
-            uniqueTickers.forEach(t => { if (priceResults[t]) allData[t] = priceResults[t]; });
+            if (failedPriceTickers.length > 0) {
+                 infoMessages.push(`<strong>Warning:</strong> Could not load critical price data for: ${failedPriceTickers.join(', ')}. These tickers and any portfolios containing them have been excluded.`);
+            }
+            allUniqueTickers.forEach(t => { if (priceResults[t]) allData[t] = priceResults[t]; });
+            const successfulTickers = Object.keys(allData);
+            if(successfulTickers.length === 0) { throw new Error("Failed to fetch data for all requested tickers."); }
+
+            const flaggedForSplit = validateAndFlagTickerData(allData);
+            if (flaggedForSplit.length > 0) {
+                infoMessages.push(`<strong>Warning:</strong> The following tickers show unusual price drops and their results may be unreliable due to data errors (e.g. unadjusted stock splits): ${flaggedForSplit.join(', ')}.`);
+            }
 
             let latestInceptionDate = '1900-01-01';
-            Object.values(allData).forEach(d => { if(d.inceptionDate > latestInceptionDate) latestInceptionDate = d.inceptionDate; });
+            successfulTickers.forEach(t => { if(allData[t].inceptionDate > latestInceptionDate) latestInceptionDate = allData[t].inceptionDate; });
 
             const effectiveStartDate = (latestInceptionDate > globalConfig.startDate) ? latestInceptionDate : globalConfig.startDate;
-            
-            let infoMessages = [`Core results loaded in ${fetchDuration}s.`];
             if (effectiveStartDate !== globalConfig.startDate) {
-                infoMessages.push(`Start date adjusted to ${effectiveStartDate}.`);
+                infoMessages.push(`<strong>Note:</strong> Start date was adjusted to ${effectiveStartDate} to accommodate the inception date of the newest asset.`);
             }
-            infoContainer.textContent = infoMessages.join(' ');
-            infoContainer.style.display = 'block';
+
+            if(infoMessages.length > 0) {
+                infoContainer.innerHTML = `<ul>${infoMessages.map(m => `<li>${m}</li>`).join('')}</ul>`;
+                infoContainer.style.display = 'block';
+            }
             
             const configForCalc = { ...globalConfig, startDate: effectiveStartDate };
             logToPage('Starting financial calculations...', false, backtestDebugContainer);
+            
+            const portfoliosForCalc = userPortfolios.filter(p => p.tickers.every(t => successfulTickers.includes(t.symbol)));
+            const benchmarksForCalc = userBenchmarks.filter(b => successfulTickers.includes(b));
+            primaryBenchmarkTicker = successfulTickers.includes(document.getElementById('benchmark1').value.trim().toUpperCase()) ? document.getElementById('benchmark1').value.trim().toUpperCase() : (benchmarksForCalc[0] || null);
 
-            const benchmarkResults = {};
-            if(primaryBenchmarkTicker && allData[primaryBenchmarkTicker]) {
-                benchmarkResults[primaryBenchmarkTicker] = calculatePortfolioPerformance({name: primaryBenchmarkTicker, tickers: [{symbol: primaryBenchmarkTicker, allocation: 100}]}, allData, configForCalc);
+            let benchmarkResults = {};
+            if(primaryBenchmarkTicker) {
+                benchmarkResults[primaryBenchmarkTicker] = calculatePortfolioPerformance({name: primaryBenchmarkTicker, tickers: [{symbol: primaryBenchmarkTicker, allocation: 100}]}, allData, configForCalc, null);
             }
 
-            const portfolioResults = portfolios.map(p => calculatePortfolioPerformance(p, allData, configForCalc, benchmarkResults[primaryBenchmarkTicker]));
+            const portfolioResults = portfoliosForCalc.map(p => calculatePortfolioPerformance(p, allData, configForCalc, benchmarkResults[primaryBenchmarkTicker])).filter(Boolean);
             
-            if(secondaryBenchmarkTicker && allData[secondaryBenchmarkTicker] && secondaryBenchmarkTicker !== primaryBenchmarkTicker){
-                benchmarkResults[secondaryBenchmarkTicker] = calculatePortfolioPerformance({name: secondaryBenchmarkTicker, tickers: [{symbol: secondaryBenchmarkTicker, allocation: 100}]}, allData, configForCalc, benchmarkResults[primaryBenchmarkTicker]);
+            benchmarksForCalc.forEach(b => {
+                if(!benchmarkResults[b]) {
+                    benchmarkResults[b] = calculatePortfolioPerformance({name: b, tickers: [{symbol: b, allocation: 100}]}, allData, configForCalc, benchmarkResults[primaryBenchmarkTicker]);
+                }
+            });
+            
+            historicalResults = [...portfolioResults, ...Object.values(benchmarkResults).filter(Boolean)];
+            if (historicalResults.length === 0) {
+                throw new Error("No portfolios or benchmarks could be calculated with the available data.");
             }
-            
-            historicalResults = [...portfolioResults, ...Object.values(benchmarkResults)];
             logToPage('Calculations complete. Rendering core results...', false, backtestDebugContainer);
             renderResults(historicalResults);
 
@@ -1339,9 +1388,6 @@ document.addEventListener("DOMContentLoaded", () => {
                 logToPage('Profile data arrived. Updating cost metrics in table...', false, backtestDebugContainer);
                 updateCostMetricsInTable(historicalResults, allProfiles);
                 logToPage('Cost metrics updated.', false, backtestDebugContainer);
-            }).catch(err => {
-                logToPage('Profile data fetch failed entirely. Cost metrics will remain N/A.', true, backtestDebugContainer);
-                 document.querySelectorAll('.mini-loader').forEach(el => { if(el.parentElement) el.parentElement.textContent = 'N/A'; });
             });
 
             logToPage('Backtest finished successfully.', false, backtestDebugContainer);
@@ -1363,9 +1409,8 @@ document.addEventListener("DOMContentLoaded", () => {
         logToPage('Projections initiated...', false, projectionDebugContainer);
         
         try {
-            if (historicalResults.length === 0) { throw new Error('Historical backtest results are not available.'); }
+            if (historicalResults.length === 0) { throw new Error('A valid backtest must be run before projections can be calculated.'); }
             
-            // ▼▼▼ CORRECTED: Gather shared parameters first ▼▼▼
             let params = { 
                 goal: projectionGoalSelect.value,
                 simulations: parseInt(document.getElementById('sim-quality').value)
@@ -1379,6 +1424,7 @@ document.addEventListener("DOMContentLoaded", () => {
 
             if (params.goal === 'grow') {
                 params.accumulationYears = parseInt(document.getElementById('grow-projection-period').value);
+                params.decumulationYears = 0;
                 params.inflationRate = parseFloat(document.getElementById('grow-inflation-rate').value) / 100;
                 params.contributionIncrease = parseFloat(document.getElementById('grow-contribution-increase').value) / 100;
                 params.initialContribution = annualContribution;
@@ -1411,6 +1457,7 @@ document.addEventListener("DOMContentLoaded", () => {
             logToPage('Projections successfully rendered.', false, projectionDebugContainer);
         } catch (error) {
             logToPage(`FATAL ERROR: ${error.message}`, true, projectionDebugContainer);
+            errorContainer.textContent = `Error: ${error.message}`;
             console.error(error);
         } finally {
             runProjectionsBtn.disabled = false;
